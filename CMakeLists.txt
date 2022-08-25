@@ -33,6 +33,7 @@ cmake_minimum_required(VERSION 3.5)
 project(c2-parquet-writer C CXX)
 
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
@@ -47,5 +48,5 @@ find_package(Arrow CONFIG REQUIRED)
 find_package(Parquet CONFIG REQUIRED PATHS
         ${Arrow_DIR} NO_DEFAULT_PATH)
 
-add_executable(writer writer.cc)
+add_executable(writer writer.cc parquet-writer.cc)
 target_link_libraries(writer parquet_shared arrow_shared)
