@@ -33,40 +33,33 @@
  */
 #pragma once
 
-#include "format.h"
-#include "scatter-gather.h"
-
-#include <parquet/api/writer.h>
+#include <arrow/io/file.h>
 
 namespace c2 {
 
-struct ParquetWriterOptions {
-  ParquetWriterOptions();
-  int64_t rowgroup_size;
-  int64_t diskpage_size;
-};
-
-class ParquetWriter {
+class ScatterFileStream : public arrow::io::OutputStream {
  public:
-  ParquetWriter(const ParquetWriterOptions& options,
-                const std::string& filename);
+  ~ScatterFileStream() override;
+  static arrow::Result<std::shared_ptr<ScatterFileStream>> Open(
+      const std::string& path);
 
-  void Open();
-  int64_t TEST_rowgroupsize() const { return rowgrouprows_; }
-  void Add(const Particle& particle);
-  void Flush();  // Force ending of a row group
-  void Finish();
+  arrow::Status Close() override;
+  bool closed() const override;
+  arrow::Result<int64_t> Tell() const override;
+
+  arrow::Status BeginRowGroup();
+  arrow::Status Write(const void* data, int64_t nbytes) override;
+  using Writable::Write;
+  arrow::Status CloseRowGroup();
 
  private:
-  void InternalFlush();
-  int64_t rowgrouprows_;
-  int64_t rowsize_;
-  parquet::RowGroupWriter* rg_writer_;
-  std::shared_ptr<parquet::ParquetFileWriter> root_writer_;
-  std::shared_ptr<ScatterFileStream> file_;
-  parquet::schema::NodeVector rowfields_;
-  ParquetWriterOptions options_;
-  std::string filename_;
+  ScatterFileStream(std::shared_ptr<arrow::io::FileOutputStream> base,
+                    const std::string& prefix);
+  std::shared_ptr<arrow::io::FileOutputStream> base_;
+  std::shared_ptr<arrow::io::FileOutputStream> rg_;
+  std::string prefix_;
+  int64_t file_offset_;
+  bool closed_;
 };
 
 }  // namespace c2

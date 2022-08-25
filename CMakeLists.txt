@@ -48,5 +48,5 @@ find_package(Arrow CONFIG REQUIRED)
 find_package(Parquet CONFIG REQUIRED PATHS
         ${Arrow_DIR} NO_DEFAULT_PATH)
 
-add_executable(writer writer.cc parquet-writer.cc)
+add_executable(writer writer.cc parquet-writer.cc scatter-gather.cc)
 target_link_libraries(writer parquet_shared arrow_shared)

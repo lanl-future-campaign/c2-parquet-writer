@@ -33,8 +33,6 @@
  */
 #include "parquet-writer.h"
 
-#include <arrow/io/file.h>
-
 namespace c2 {
 
 ParquetWriterOptions::ParquetWriterOptions()
@@ -92,7 +90,7 @@ void ParquetWriter::Open() {
   assert(!root_writer_);
   assert(!filename_.empty());
   assert(!file_);
-  PARQUET_ASSIGN_OR_THROW(file_, arrow::io::FileOutputStream::Open(filename_));
+  PARQUET_ASSIGN_OR_THROW(file_, ScatterFileStream::Open(filename_));
   parquet::WriterProperties::Builder builder;
   builder.encoding(parquet::Encoding::PLAIN);
   builder.disable_dictionary();
@@ -113,6 +111,7 @@ void ParquetWriter::Add(const Particle& particle) {
     InternalFlush();
   }
   if (!rg_writer_) {
+    file_->BeginRowGroup();
     rg_writer_ = root_writer_->AppendBufferedRowGroup();
   }
   int64_t id = particle.id;
@@ -168,6 +167,7 @@ void ParquetWriter::InternalFlush() {
     abort();
   }
   rg_writer_ = NULLPTR;
+  file_->CloseRowGroup();
 }
 
 void ParquetWriter::Finish() {

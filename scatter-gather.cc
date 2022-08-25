@@ -31,42 +31,86 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#pragma once
-
-#include "format.h"
 #include "scatter-gather.h"
 
-#include <parquet/api/writer.h>
+#include <arrow/filesystem/localfs.h>
 
 namespace c2 {
 
-struct ParquetWriterOptions {
-  ParquetWriterOptions();
-  int64_t rowgroup_size;
-  int64_t diskpage_size;
-};
+ScatterFileStream::ScatterFileStream(
+    std::shared_ptr<arrow::io::FileOutputStream> base, const std::string& p)
+    : base_(std::move(base)), prefix_(p), file_offset_(0), closed_(false) {}
 
-class ParquetWriter {
- public:
-  ParquetWriter(const ParquetWriterOptions& options,
-                const std::string& filename);
+arrow::Result<std::shared_ptr<ScatterFileStream>> ScatterFileStream::Open(
+    const std::string& prefix) {
+  std::string path = prefix;
+  size_t prefixlen = prefix.size();
+  arrow::fs::LocalFileSystem fs;
+  auto s = fs.CreateDir(path, true);
+  if (!s.ok()) {
+    return s;
+  }
+  path.resize(prefixlen);
+  path += "/root";
+  auto r = arrow::io::FileOutputStream::Open(path);
+  if (!r.ok()) {
+    return r.status();
+  }
+  return std::shared_ptr<ScatterFileStream>(new ScatterFileStream(*r, prefix));
+}
 
-  void Open();
-  int64_t TEST_rowgroupsize() const { return rowgrouprows_; }
-  void Add(const Particle& particle);
-  void Flush();  // Force ending of a row group
-  void Finish();
+arrow::Status ScatterFileStream::Write(const void* data, int64_t nbytes) {
+  arrow::Status s;
+  if (rg_)
+    s = rg_->Write(data, nbytes);
+  else
+    s = base_->Write(data, nbytes);
+  if (s.ok()) file_offset_ += nbytes;
+  return s;
+}
 
- private:
-  void InternalFlush();
-  int64_t rowgrouprows_;
-  int64_t rowsize_;
-  parquet::RowGroupWriter* rg_writer_;
-  std::shared_ptr<parquet::ParquetFileWriter> root_writer_;
-  std::shared_ptr<ScatterFileStream> file_;
-  parquet::schema::NodeVector rowfields_;
-  ParquetWriterOptions options_;
-  std::string filename_;
-};
+arrow::Result<int64_t> ScatterFileStream::Tell() const { return file_offset_; }
+
+bool ScatterFileStream::closed() const { return closed_; }
+
+arrow::Status ScatterFileStream::BeginRowGroup() {
+  auto s = CloseRowGroup();
+  if (!s.ok()) {
+    return s;
+  }
+  char tmp[10];
+  snprintf(tmp, sizeof(tmp), "%lld", static_cast<long long>(file_offset_));
+  std::string path = prefix_;
+  path += "/rg-";
+  path += tmp;
+  auto r = arrow::io::FileOutputStream::Open(path);
+  if (!r.ok()) {
+    return r.status();
+  }
+  rg_ = *r;
+  return s;
+}
+
+arrow::Status ScatterFileStream::CloseRowGroup() {
+  arrow::Status s;
+  if (rg_) {
+    s = rg_->Close();
+    rg_ = NULLPTR;
+  }
+  return s;
+}
+
+arrow::Status ScatterFileStream::Close() {
+  closed_ = true;
+  if (rg_) {
+    auto s = rg_->Close();
+    if (!s.ok()) {
+      return s;
+    }
+  }
+  return base_->Close();
+}
+
+ScatterFileStream::~ScatterFileStream() {}
 
 }  // namespace c2
