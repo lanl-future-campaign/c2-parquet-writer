@@ -150,10 +150,7 @@ void ParquetWriter::InternalFlush() {
     int64_t cursize = *file_->Tell() - colbase;
     if (cursize < colsize) {
       padding.resize(colsize - cursize, 0);
-      auto r = file_->Write(arrow::util::string_view(padding));
-      if (!r.ok()) {
-        throw std::runtime_error(r.ToString());
-      }
+      PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
     } else if (cursize == colsize) {
       // OK!
     } else {
@@ -164,10 +161,7 @@ void ParquetWriter::InternalFlush() {
   int64_t cur = *file_->Tell() - base;
   if (cur < options_.rowgroup_size) {
     padding.resize(options_.rowgroup_size - cur, 0);
-    auto r = file_->Write(arrow::util::string_view(padding));
-    if (!r.ok()) {
-      throw std::runtime_error(r.ToString());
-    }
+    PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
   } else if (cur == options_.rowgroup_size) {
     // OK!
   } else {
