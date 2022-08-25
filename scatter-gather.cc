@@ -37,9 +37,16 @@
 
 namespace c2 {
 
+ScatterFileStreamOptions::ScatterFileStreamOptions() : fragment_size(4 << 20) {}
+
 ScatterFileStream::ScatterFileStream(
+    const ScatterFileStreamOptions& options,
     std::shared_ptr<arrow::io::FileOutputStream> base, const std::string& p)
-    : base_(std::move(base)), prefix_(p), file_offset_(0), closed_(false) {}
+    : base_(std::move(base)),
+      options_(options),
+      prefix_(p),
+      file_offset_(0),
+      closed_(false) {}
 
 arrow::Result<std::shared_ptr<ScatterFileStream>> ScatterFileStream::Open(
     const std::string& prefix) {
@@ -56,13 +63,14 @@ arrow::Result<std::shared_ptr<ScatterFileStream>> ScatterFileStream::Open(
   if (!r.ok()) {
     return r.status();
   }
-  return std::shared_ptr<ScatterFileStream>(new ScatterFileStream(*r, prefix));
+  return std::shared_ptr<ScatterFileStream>(
+      new ScatterFileStream(ScatterFileStreamOptions(), *r, prefix));
 }
 
 arrow::Status ScatterFileStream::Write(const void* data, int64_t nbytes) {
   arrow::Status s;
-  if (rg_)
-    s = rg_->Write(data, nbytes);
+  if (rgb_)
+    s = rgb_->Write(data, nbytes);
   else
     s = base_->Write(data, nbytes);
   if (s.ok()) file_offset_ += nbytes;
@@ -74,39 +82,45 @@ arrow::Result<int64_t> ScatterFileStream::Tell() const { return file_offset_; }
 bool ScatterFileStream::closed() const { return closed_; }
 
 arrow::Status ScatterFileStream::BeginRowGroup() {
-  auto s = CloseRowGroup();
-  if (!s.ok()) {
-    return s;
+  arrow::Status s;
+  if (!rgb_) {
+    char tmp[10];
+    snprintf(tmp, sizeof(tmp), "%lld", static_cast<long long>(file_offset_));
+    std::string path = prefix_;
+    path += "/rgb-";
+    path += tmp;
+    auto r = arrow::io::FileOutputStream::Open(path);
+    if (!r.ok()) {
+      return r.status();
+    }
+    rgb_ = *r;
   }
-  char tmp[10];
-  snprintf(tmp, sizeof(tmp), "%lld", static_cast<long long>(file_offset_));
-  std::string path = prefix_;
-  path += "/rg-";
-  path += tmp;
-  auto r = arrow::io::FileOutputStream::Open(path);
-  if (!r.ok()) {
-    return r.status();
-  }
-  rg_ = *r;
   return s;
 }
 
 arrow::Status ScatterFileStream::CloseRowGroup() {
   arrow::Status s;
-  if (rg_) {
-    s = rg_->Close();
-    rg_ = NULLPTR;
+  if (rgb_ && *rgb_->Tell() >= options_.fragment_size) {
+    s = rgb_->Close();
+    rgb_ = NULLPTR;
+  }
+  return s;
+}
+
+arrow::Status ScatterFileStream::Finish() {
+  arrow::Status s;
+  if (rgb_) {
+    s = rgb_->Close();
+    rgb_ = NULLPTR;
   }
   return s;
 }
 
 arrow::Status ScatterFileStream::Close() {
   closed_ = true;
-  if (rg_) {
-    auto s = rg_->Close();
-    if (!s.ok()) {
-      return s;
-    }
+  auto s = Finish();
+  if (!s.ok()) {
+    return s;
   }
   return base_->Close();
 }

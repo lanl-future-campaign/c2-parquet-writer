@@ -172,6 +172,7 @@ void ParquetWriter::InternalFlush() {
 
 void ParquetWriter::Finish() {
   Flush();
+  PARQUET_THROW_NOT_OK(file_->Finish());
   if (root_writer_) {
     root_writer_->Close();
   }

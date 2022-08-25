@@ -37,6 +37,13 @@
 
 namespace c2 {
 
+struct ScatterFileStreamOptions {
+  ScatterFileStreamOptions();
+  // Byte size for each row group batch
+  // Default: 4MB
+  int64_t fragment_size;
+};
+
 class ScatterFileStream : public arrow::io::OutputStream {
  public:
   ~ScatterFileStream() override;
@@ -51,12 +58,15 @@ class ScatterFileStream : public arrow::io::OutputStream {
   arrow::Status Write(const void* data, int64_t nbytes) override;
   using Writable::Write;
   arrow::Status CloseRowGroup();
+  arrow::Status Finish();
 
  private:
-  ScatterFileStream(std::shared_ptr<arrow::io::FileOutputStream> base,
+  ScatterFileStream(const ScatterFileStreamOptions& options,
+                    std::shared_ptr<arrow::io::FileOutputStream> base,
                     const std::string& prefix);
   std::shared_ptr<arrow::io::FileOutputStream> base_;
-  std::shared_ptr<arrow::io::FileOutputStream> rg_;
+  std::shared_ptr<arrow::io::FileOutputStream> rgb_;
+  ScatterFileStreamOptions options_;
   std::string prefix_;
   int64_t file_offset_;
   bool closed_;

@@ -134,7 +134,8 @@ int main(int argc, char* argv[]) {
   c2::ParquetWriter writer(options, "xyz.parquet");
   writer.Open();
   fprintf(stderr, "rowgroupsize=%lld\n", writer.TEST_rowgroupsize());
-  for (int64_t i = 0; i < writer.TEST_rowgroupsize(); i++) writer.Add(p);
+  const int64_t rows = writer.TEST_rowgroupsize() * 2;
+  for (int64_t i = 0; i < rows; i++) writer.Add(p);
   writer.Finish();
-  return 0;  //
+  return 0;
 }
