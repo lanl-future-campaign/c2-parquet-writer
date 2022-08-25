@@ -33,10 +33,12 @@ BasedOnStyle: google
 DerivePointerAlignment: false
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex: '^<.*\.h>'
+  - Regex: '^<parquet.*\.h>'
+    Priority: 2
+  - Regex: '^<arrow.*\.h>'
     Priority: 3
   - Regex: '^<.*'
-    Priority: 3
+    Priority: 4
   - Regex: '.*'
     Priority: 1
 ...
