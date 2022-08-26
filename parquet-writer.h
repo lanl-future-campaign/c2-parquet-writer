@@ -54,7 +54,9 @@ class ParquetWriter {
   void Open();
   int64_t TEST_rowgroupsize() const { return rowgrouprows_; }
   void Add(const Particle& particle);
-  void Flush();  // Force ending of a row group
+  // Force ending the current row group.
+  // Remaining space will be padded.
+  void Flush();
   void Finish();
 
  private:
