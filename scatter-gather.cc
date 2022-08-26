@@ -53,6 +53,9 @@ arrow::Result<std::shared_ptr<ScatterFileStream>> ScatterFileStream::Open(
   std::string path = prefix;
   size_t prefixlen = prefix.size();
   arrow::fs::LocalFileSystem fs;
+  // Create the container directory, ready the base file, but defer
+  // the creation of the first row group batch; it will be dynamically
+  // created as row groups are inserted
   auto s = fs.CreateDir(path, true);
   if (!s.ok()) {
     return s;
@@ -98,23 +101,20 @@ arrow::Status ScatterFileStream::BeginRowGroup() {
   return s;
 }
 
-arrow::Status ScatterFileStream::CloseRowGroup() {
+arrow::Status ScatterFileStream::FlushRowGroupBatch(bool force) {
   arrow::Status s;
-  if (rgb_ && *rgb_->Tell() >= options_.fragment_size) {
-    s = rgb_->Close();
-    rgb_ = NULLPTR;
+  if (rgb_) {
+    if (force || *rgb_->Tell() >= options_.fragment_size) {
+      s = rgb_->Close();
+      rgb_ = NULLPTR;
+    }
   }
   return s;
 }
 
-arrow::Status ScatterFileStream::Finish() {
-  arrow::Status s;
-  if (rgb_) {
-    s = rgb_->Close();
-    rgb_ = NULLPTR;
-  }
-  return s;
-}
+arrow::Status ScatterFileStream::EndRowGroup() { return FlushRowGroupBatch(); }
+
+arrow::Status ScatterFileStream::Finish() { return FlushRowGroupBatch(true); }
 
 arrow::Status ScatterFileStream::Close() {
   closed_ = true;

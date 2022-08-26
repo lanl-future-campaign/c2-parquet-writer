@@ -54,13 +54,16 @@ class ScatterFileStream : public arrow::io::OutputStream {
   bool closed() const override;
   arrow::Result<int64_t> Tell() const override;
 
+  // Clients are expected to call 0, 1, or more pairs of BeginRowGroup()
+  // and EndRowGroup(), followed by a single Finish().
   arrow::Status BeginRowGroup();
   arrow::Status Write(const void* data, int64_t nbytes) override;
   using Writable::Write;
-  arrow::Status CloseRowGroup();
+  arrow::Status EndRowGroup();
   arrow::Status Finish();
 
  private:
+  arrow::Status FlushRowGroupBatch(bool force = false);
   ScatterFileStream(const ScatterFileStreamOptions& options,
                     std::shared_ptr<arrow::io::FileOutputStream> base,
                     const std::string& prefix);

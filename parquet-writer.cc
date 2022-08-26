@@ -167,7 +167,7 @@ void ParquetWriter::InternalFlush() {
     abort();
   }
   rg_writer_ = NULLPTR;
-  file_->CloseRowGroup();
+  file_->EndRowGroup();
 }
 
 void ParquetWriter::Finish() {
