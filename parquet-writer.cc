@@ -111,7 +111,7 @@ void ParquetWriter::Add(const Particle& particle) {
     InternalFlush();
   }
   if (!rg_writer_) {
-    file_->BeginRowGroup();
+    PARQUET_THROW_NOT_OK(file_->BeginRowGroup());
     rg_writer_ = root_writer_->AppendBufferedRowGroup();
   }
   int64_t id = particle.id;
@@ -167,7 +167,7 @@ void ParquetWriter::InternalFlush() {
     abort();
   }
   rg_writer_ = NULLPTR;
-  file_->EndRowGroup();
+  PARQUET_THROW_NOT_OK(file_->EndRowGroup());
 }
 
 void ParquetWriter::Finish() {
