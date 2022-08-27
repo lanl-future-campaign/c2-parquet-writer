@@ -42,6 +42,11 @@ struct ScatterFileStreamOptions {
   // Byte size for each row group batch
   // Default: 4MB
   int64_t fragment_size;
+  // Fragments are padded unless the following is true.
+  // Padding may be skipped when all fragments are known to consume at least two
+  // zfs records, in which case zfs will perform the padding for us.
+  // Default: false
+  bool skip_padding;
 };
 
 class ScatterFileStream : public arrow::io::OutputStream {

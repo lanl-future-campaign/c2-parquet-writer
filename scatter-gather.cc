@@ -37,7 +37,8 @@
 
 namespace c2 {
 
-ScatterFileStreamOptions::ScatterFileStreamOptions() : fragment_size(4 << 20) {}
+ScatterFileStreamOptions::ScatterFileStreamOptions()
+    : fragment_size(4 << 20), skip_padding(false) {}
 
 ScatterFileStream::ScatterFileStream(
     const ScatterFileStreamOptions& options,
@@ -104,10 +105,26 @@ arrow::Status ScatterFileStream::BeginRowGroup() {
 arrow::Status ScatterFileStream::FlushRowGroupBatch(bool force) {
   arrow::Status s;
   if (rgb_) {
-    if (force || *rgb_->Tell() >= options_.fragment_size) {
-      s = rgb_->Close();
-      rgb_ = NULLPTR;
+    auto r = rgb_->Tell();
+    if (!r.ok()) {
+      return r.status();
     }
+    const int64_t cur = *r;
+    if (cur > options_.fragment_size) {
+      abort();
+    } else if (cur < options_.fragment_size && !force) {
+      return s;
+    } else if (options_.skip_padding) {
+      // Empty
+    } else {
+      int64_t n = options_.fragment_size - cur;
+      s = rgb_->Write(arrow::util::string_view(std::string(n, 0)));
+      if (!s.ok()) {
+        return s;
+      }
+    }
+    s = rgb_->Close();
+    rgb_ = NULLPTR;
   }
   return s;
 }
