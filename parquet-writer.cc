@@ -38,13 +38,11 @@ namespace c2 {
 ParquetWriterOptions::ParquetWriterOptions()
     : rowgroup_size(1 << 20), diskpage_size(1 << 9), skip_scattering(false) {}
 
-ParquetWriter::ParquetWriter(const ParquetWriterOptions& options,
-                             const std::string& filename)
+ParquetWriter::ParquetWriter(const ParquetWriterOptions& options)
     : rowgrouprows_(options.rowgroup_size),
       rowsize_(1),
       rg_writer_(NULLPTR),
-      options_(options),
-      filename_(filename) {}
+      options_(options) {}
 
 namespace {
 int64_t SetupSchema(parquet::schema::NodeVector* fields) {
@@ -86,11 +84,10 @@ int64_t CalculateRowGroupSize(const ParquetWriterOptions& options,
 
 }  // namespace
 
-void ParquetWriter::Open() {
+void ParquetWriter::Open(std::shared_ptr<ScatterFileStream> file) {
   assert(!root_writer_);
-  assert(!filename_.empty());
   assert(!file_);
-  PARQUET_ASSIGN_OR_THROW(file_, ScatterFileStream::Open(filename_));
+  file_ = std::move(file);
   parquet::WriterProperties::Builder builder;
   builder.encoding(parquet::Encoding::PLAIN);
   builder.disable_dictionary();

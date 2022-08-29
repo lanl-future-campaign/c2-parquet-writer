@@ -51,10 +51,9 @@ struct ParquetWriterOptions {
 
 class ParquetWriter {
  public:
-  ParquetWriter(const ParquetWriterOptions& options,
-                const std::string& filename);
+  explicit ParquetWriter(const ParquetWriterOptions& options);
 
-  void Open();
+  void Open(std::shared_ptr<ScatterFileStream> file);
   int64_t TEST_rowgroupsize() const { return rowgrouprows_; }
   void Add(const Particle& particle);
   // Force ending the current row group.
@@ -71,7 +70,6 @@ class ParquetWriter {
   std::shared_ptr<ScatterFileStream> file_;
   parquet::schema::NodeVector rowfields_;
   ParquetWriterOptions options_;
-  std::string filename_;
 };
 
 }  // namespace c2
