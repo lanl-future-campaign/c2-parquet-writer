@@ -134,8 +134,7 @@ int main(int argc, char* argv[]) {
   PARQUET_ASSIGN_OR_THROW(file, c2::ScatterFileStream::Open("xyz.parquet"));
   c2::ParquetWriterOptions options;
   options.skip_scattering = true;
-  c2::ParquetWriter writer(options);
-  writer.Open(std::move(file));
+  c2::ParquetWriter writer(options, std::move(file));
   const int64_t rows = 10;
   for (int64_t i = 0; i < rows; i++) {
     p.id = i;
