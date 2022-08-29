@@ -36,7 +36,7 @@
 namespace c2 {
 
 ParquetWriterOptions::ParquetWriterOptions()
-    : rowgroup_size(1 << 20), diskpage_size(1 << 9) {}
+    : rowgroup_size(1 << 20), diskpage_size(1 << 9), skip_scattering(false) {}
 
 ParquetWriter::ParquetWriter(const ParquetWriterOptions& options,
                              const std::string& filename)
@@ -111,7 +111,9 @@ void ParquetWriter::Add(const Particle& particle) {
     InternalFlush();
   }
   if (!rg_writer_) {
-    PARQUET_THROW_NOT_OK(file_->BeginRowGroup());
+    if (!options_.skip_scattering) {
+      PARQUET_THROW_NOT_OK(file_->BeginRowGroup());
+    }
     rg_writer_ = root_writer_->AppendBufferedRowGroup();
   }
   int64_t id = particle.id;
@@ -167,12 +169,16 @@ void ParquetWriter::InternalFlush() {
     abort();
   }
   rg_writer_ = NULLPTR;
-  PARQUET_THROW_NOT_OK(file_->EndRowGroup());
+  if (!options_.skip_scattering) {
+    PARQUET_THROW_NOT_OK(file_->EndRowGroup());
+  }
 }
 
 void ParquetWriter::Finish() {
-  Flush();
-  PARQUET_THROW_NOT_OK(file_->Finish());
+  Flush();  // Force ending the current row group with potential paddings
+  if (!options_.skip_scattering) {
+    PARQUET_THROW_NOT_OK(file_->Finish());
+  }
   if (root_writer_) {
     root_writer_->Close();
   }

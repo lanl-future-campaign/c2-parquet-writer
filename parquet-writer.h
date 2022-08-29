@@ -44,6 +44,9 @@ struct ParquetWriterOptions {
   ParquetWriterOptions();
   int64_t rowgroup_size;
   int64_t diskpage_size;
+  // Generate normal parquet files with no row group scattering
+  // Default: false
+  bool skip_scattering;
 };
 
 class ParquetWriter {

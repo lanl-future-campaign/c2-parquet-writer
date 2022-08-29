@@ -129,13 +129,16 @@ Reader::~Reader() {
 
 int main(int argc, char* argv[]) {
   c2::Particle p;
-  p.id = 108;
+  memset(&p, 0, sizeof(p));
   c2::ParquetWriterOptions options;
+  options.skip_scattering = true;
   c2::ParquetWriter writer(options, "xyz.parquet");
   writer.Open();
-  fprintf(stderr, "rowgroupsize=%lld\n", writer.TEST_rowgroupsize());
-  const int64_t rows = writer.TEST_rowgroupsize() * 2;
-  for (int64_t i = 0; i < rows; i++) writer.Add(p);
+  const int64_t rows = 10;
+  for (int64_t i = 0; i < rows; i++) {
+    p.id = i;
+    writer.Add(p);
+  }
   writer.Finish();
   return 0;
 }
