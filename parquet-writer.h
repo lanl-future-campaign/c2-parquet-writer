@@ -42,11 +42,17 @@ namespace c2 {
 
 struct ParquetWriterOptions {
   ParquetWriterOptions();
+  // Size of each parquet row group.
+  // Default: 1MB
   int64_t rowgroup_size;
+  // Size of a single disk page (zfs ashift)
+  // Default: 512B
   int64_t diskpage_size;
-  // Generate normal parquet files with no row group scattering
+  // Skip calling a ScatterFileStream's BeginRowGroup(), EndRowGroup(), and
+  // Finish() functions that are required to generate scattered parquet row
+  // groups. This option is mainly used by internal test code.
   // Default: false
-  bool skip_scattering;
+  bool TEST_skip_scattering;
 };
 
 class ParquetWriter {

@@ -36,7 +36,8 @@
 namespace c2 {
 
 ParquetWriterOptions::ParquetWriterOptions()
-    : rowgroup_size(1 << 20), diskpage_size(1 << 9), skip_scattering(false) {}
+    : rowgroup_size(1 << 20), diskpage_size(1 << 9),
+      TEST_skip_scattering(false) {}
 
 namespace {
 int64_t SetupSchema(parquet::schema::NodeVector* fields) {
@@ -104,7 +105,7 @@ void ParquetWriter::Add(const Particle& particle) {
     InternalFlush();
   }
   if (!rg_writer_) {
-    if (!options_.skip_scattering) {
+    if (!options_.TEST_skip_scattering) {
       PARQUET_THROW_NOT_OK(file_->BeginRowGroup());
     }
     rg_writer_ = root_writer_->AppendBufferedRowGroup();
@@ -162,14 +163,14 @@ void ParquetWriter::InternalFlush() {
     abort();
   }
   rg_writer_ = NULLPTR;
-  if (!options_.skip_scattering) {
+  if (!options_.TEST_skip_scattering) {
     PARQUET_THROW_NOT_OK(file_->EndRowGroup());
   }
 }
 
 void ParquetWriter::Finish() {
   Flush();  // Force ending the current row group with potential paddings
-  if (!options_.skip_scattering) {
+  if (!options_.TEST_skip_scattering) {
     PARQUET_THROW_NOT_OK(file_->Finish());
   }
   if (root_writer_) {
