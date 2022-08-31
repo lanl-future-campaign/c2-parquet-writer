@@ -36,7 +36,8 @@
 namespace c2 {
 
 ParquetWriterOptions::ParquetWriterOptions()
-    : rowgroup_size(1 << 20), diskpage_size(1 << 9),
+    : rowgroup_size(1 << 20),
+      diskpage_size(1 << 9),
       TEST_skip_scattering(false) {}
 
 namespace {
@@ -168,13 +169,77 @@ void ParquetWriter::InternalFlush() {
   }
 }
 
+#define PARQUET_WRITER_DEBUG 1
+#if PARQUET_WRITER_DEBUG
+namespace {
+std::string EscapedStringTo(const std::string& value) {
+  std::string str;
+  for (size_t i = 0; i < value.size(); i++) {
+    char c = value[i];
+    if (c >= ' ' && c <= '~') {
+      str.push_back(c);
+    } else {
+      char buf[10];
+      std::snprintf(buf, sizeof(buf), "\\x%02x",
+                    static_cast<unsigned int>(c) & 0xff);
+      str.append(buf);
+    }
+  }
+  return str;
+}
+}  // namespace
+#endif
 void ParquetWriter::Finish() {
   Flush();  // Force ending the current row group with potential paddings
   if (!options_.TEST_skip_scattering) {
     PARQUET_THROW_NOT_OK(file_->Finish());
   }
   if (root_writer_) {
-    root_writer_->Close();
+    {
+      root_writer_->Close();
+#if PARQUET_WRITER_DEBUG
+      std::shared_ptr<parquet::FileMetaData> f = root_writer_->metadata();
+      for (int r = 0; r < f->num_row_groups(); r++) {
+        printf("=====================\nRow group %d\n", r);
+        std::unique_ptr<parquet::RowGroupMetaData> rg = f->RowGroup(r);
+        printf("Num columns: %d\n", rg->num_columns());
+        printf("Num rows: %lld\n", static_cast<long long>(rg->num_rows()));
+        printf("File offset: %lld\n",
+               static_cast<long long>(rg->file_offset()));
+        for (int i = 0; i < rg->num_columns(); i++) {
+          printf("---------------------\nColumn chunk %d\n", i);
+          std::unique_ptr<parquet::ColumnChunkMetaData> col =
+              rg->ColumnChunk(i);
+          printf("Num values: %lld\n",
+                 static_cast<long long>(col->num_values()));
+          printf("File offset: %lld\n",
+                 static_cast<long long>(col->file_offset()));
+          printf("Page offsets: %lld (data), %lld (index), %lld (dict)\n",
+                 static_cast<long long>(col->data_page_offset()),
+                 static_cast<long long>(col->index_page_offset()),
+                 static_cast<long long>(col->dictionary_page_offset()));
+          printf("Total compressed size: %lld\n",
+                 static_cast<long long>(col->total_compressed_size()));
+          printf("Total uncompressed size: %lld\n",
+                 static_cast<long long>(col->total_uncompressed_size()));
+          if (col->is_stats_set()) {
+            std::shared_ptr<parquet::Statistics> s = col->statistics();
+            parquet::EncodedStatistics stats = s->Encode();
+            if (stats.has_max && stats.has_min) {
+              printf("Range: %s-%s\n", EscapedStringTo(stats.min()).c_str(),
+                     EscapedStringTo(stats.max()).c_str());
+            }
+          }
+        }
+        printf(".....................\n");
+        printf("Total compressed size: %lld\n",
+               static_cast<long long>(rg->total_compressed_size()));
+        printf("Total byte size: %lld\n",
+               static_cast<long long>(rg->total_byte_size()));
+      }
+#endif
+    }
+    root_writer_.reset();
   }
 }
 
