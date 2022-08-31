@@ -62,7 +62,7 @@ arrow::Result<std::shared_ptr<ScatterFileStream>> ScatterFileStream::Open(
     return s;
   }
   path.resize(prefixlen);
-  path += "/root";
+  path += "/metadata";
   auto r = arrow::io::FileOutputStream::Open(path);
   if (!r.ok()) {
     return r.status();
