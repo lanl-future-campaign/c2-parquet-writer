@@ -65,7 +65,7 @@ int64_t CalculateRowGroupSize(const ParquetWriterOptions& options,
                               const int64_t rowsize) {
   int64_t result = INT64_MAX;
   const int64_t t0 = options.rowgroup_size / options.diskpage_size;
-  const int64_t t = t0 - 1;
+  const int64_t t = t0 - 2;
   for (int i = 0; i < fields.size(); ++i) {
     const int64_t s = GetTypeByteSize(
         std::static_pointer_cast<parquet::schema::PrimitiveNode>(fields[i])
@@ -82,34 +82,81 @@ int64_t CalculateRowGroupSize(const ParquetWriterOptions& options,
 
 ParquetWriter::ParquetWriter(const ParquetWriterOptions& options,
                              std::shared_ptr<ScatterFileStream> file)
-    : rowgrouprows_(options.rowgroup_size),
-      rowsize_(1),
+    : file_(std::move(file)),
       rg_writer_(NULLPTR),
-      file_(std::move(file)),
-      options_(options) {
+      rg_base_(0),
+      options_(options),
+      max_rowgroup_rows_(options.rowgroup_size),
+      row_size_(1) {
   parquet::WriterProperties::Builder builder;
   builder.encoding(parquet::Encoding::PLAIN);
   builder.disable_dictionary();
   builder.data_pagesize(options_.rowgroup_size);
-  std::shared_ptr<parquet::WriterProperties> props = builder.build();
-  rowsize_ = SetupSchema(&rowfields_);
-  rowgrouprows_ = CalculateRowGroupSize(options_, rowfields_, rowsize_);
-  std::shared_ptr<parquet::schema::GroupNode> schema =
-      std::static_pointer_cast<parquet::schema::GroupNode>(
-          parquet::schema::GroupNode::Make(
-              "particle", parquet::Repetition::REQUIRED, rowfields_));
-  root_writer_ = parquet::ParquetFileWriter::Open(file_, schema, props);
+  builder.enable_statistics();
+  properties_ = builder.build();
+  row_size_ = SetupSchema(&children_);
+  max_rowgroup_rows_ = CalculateRowGroupSize(options_, children_, row_size_);
+  root_ = std::static_pointer_cast<parquet::schema::GroupNode>(
+      parquet::schema::GroupNode::Make(
+          "particle", parquet::Repetition::REQUIRED, children_));
 }
 
+namespace {
+
+class FileOutputStreamWrapper : public arrow::io::OutputStream {
+ public:
+  FileOutputStreamWrapper(std::shared_ptr<arrow::io::OutputStream> base,
+                          int64_t base_offset)
+      : base_(std::move(base)), base_offset_(base_offset), closed_(false) {}
+  ~FileOutputStreamWrapper() override {}
+
+  arrow::Status Close() override {
+    arrow::Status s;
+    closed_ = true;
+    return s;
+  }
+  bool closed() const override { return closed_; }
+  arrow::Result<int64_t> Tell() const override {
+    auto r = base_->Tell();
+    if (r.ok()) {
+      return *r - base_offset_;
+    } else {
+      return r;
+    }
+  }
+  arrow::Status Write(const void* data, int64_t nbytes) override {
+    return base_->Write(data, nbytes);
+  }
+  using Writable::Write;
+
+ private:
+  std::shared_ptr<arrow::io::OutputStream> base_;
+  int64_t base_offset_;
+  bool closed_;
+};
+
+}  // namespace
+
 void ParquetWriter::Add(const Particle& particle) {
-  if (rg_writer_ && rg_writer_->num_rows() >= rowgrouprows_) {
+  if (rg_writer_ && rg_writer_->num_rows() >= max_rowgroup_rows_) {
     InternalFlush();
   }
   if (!rg_writer_) {
     if (!options_.TEST_skip_scattering) {
       PARQUET_THROW_NOT_OK(file_->BeginRowGroup());
     }
-    rg_writer_ = root_writer_->AppendBufferedRowGroup();
+    rg_base_ = *file_->Tell();
+    std::shared_ptr<arrow::io::OutputStream> f(
+        new FileOutputStreamWrapper(file_, rg_base_));
+    writer_ = parquet::ParquetFileWriter::Open(f, root_, properties_);
+    int64_t cur = *f->Tell();
+    if (cur < options_.diskpage_size) {
+      std::string padding(options_.diskpage_size - cur, 0);
+      PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
+    } else {
+      abort();
+    }
+    rg_writer_ = writer_->AppendBufferedRowGroup();
   }
   int64_t id = particle.id;
   static_cast<parquet::Int64Writer*>(rg_writer_->column(0))
@@ -127,45 +174,6 @@ void ParquetWriter::Add(const Particle& particle) {
 void ParquetWriter::Flush() {
   if (rg_writer_) {
     InternalFlush();
-  }
-}
-
-void ParquetWriter::InternalFlush() {
-  std::string padding;
-  padding.reserve(options_.diskpage_size << 1);
-  const int64_t base = *file_->Tell();
-  const int64_t t0 = options_.rowgroup_size / options_.diskpage_size;
-  const int64_t t = t0 - 1;
-  for (int i = 0; i < rowfields_.size(); ++i) {
-    const int64_t colbase = *file_->Tell();
-    const int64_t s = GetTypeByteSize(
-        std::static_pointer_cast<parquet::schema::PrimitiveNode>(rowfields_[i])
-            ->physical_type());
-    rg_writer_->column(i)->Close();
-    int64_t colsize = t * s / rowsize_ * options_.diskpage_size;
-    int64_t cursize = *file_->Tell() - colbase;
-    if (cursize < colsize) {
-      padding.resize(colsize - cursize, 0);
-      PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
-    } else if (cursize == colsize) {
-      // OK!
-    } else {
-      abort();
-    }
-  }
-  rg_writer_->Close();
-  int64_t cur = *file_->Tell() - base;
-  if (cur < options_.rowgroup_size) {
-    padding.resize(options_.rowgroup_size - cur, 0);
-    PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
-  } else if (cur == options_.rowgroup_size) {
-    // OK!
-  } else {
-    abort();
-  }
-  rg_writer_ = NULLPTR;
-  if (!options_.TEST_skip_scattering) {
-    PARQUET_THROW_NOT_OK(file_->EndRowGroup());
   }
 }
 
@@ -214,7 +222,7 @@ void PrintRowGroupMetaData(const parquet::RowGroupMetaData& rg) {
   for (int i = 0; i < rg.num_columns(); i++) {
     printf(
         "---------------------\n"
-        "Column chunk %d\n",
+        "> Column chunk %d\n",
         i);
     std::unique_ptr<parquet::ColumnChunkMetaData> col = rg.ColumnChunk(i);
     PrintColumnChunkMetaData(*col);
@@ -228,7 +236,7 @@ void PrintFileMetaData(const parquet::FileMetaData& f) {
   for (int r = 0; r < f.num_row_groups(); r++) {
     printf(
         "=====================\n"
-        "Row group %d\n",
+        "> Row group %d\n",
         r);
     std::unique_ptr<parquet::RowGroupMetaData> rg = f.RowGroup(r);
     PrintRowGroupMetaData(*rg);
@@ -238,20 +246,58 @@ void PrintFileMetaData(const parquet::FileMetaData& f) {
 #undef LLD
 }  // namespace
 #endif
+
+void ParquetWriter::InternalFlush() {
+  std::string padding;
+  padding.reserve(options_.diskpage_size << 1);
+  const int64_t t0 = options_.rowgroup_size / options_.diskpage_size;
+  const int64_t t = t0 - 2;
+  for (int i = 0; i < children_.size(); ++i) {
+    const int64_t colbase = *file_->Tell();
+    const int64_t s = GetTypeByteSize(
+        std::static_pointer_cast<parquet::schema::PrimitiveNode>(children_[i])
+            ->physical_type());
+    rg_writer_->column(i)->Close();
+    int64_t colsize = t * s / row_size_ * options_.diskpage_size;
+    int64_t cursize = *file_->Tell() - colbase;
+    if (cursize < colsize) {
+      padding.resize(colsize - cursize, 0);
+      PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
+    } else if (cursize == colsize) {
+      // OK!
+    } else {
+      abort();
+    }
+  }
+  rg_writer_->Close();
+  rg_writer_ = NULLPTR;
+  writer_->Close();
+  {
+    std::shared_ptr<parquet::FileMetaData> f = writer_->metadata();
+#if PARQUET_WRITER_DEBUG
+    PrintFileMetaData(*f);
+#endif
+  }
+  writer_.reset();
+  int64_t cur = *file_->Tell() - rg_base_;
+  if (cur < options_.rowgroup_size) {
+    padding.resize(options_.rowgroup_size - cur, 0);
+    PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
+  } else if (cur == options_.rowgroup_size) {
+    // OK!
+  } else {
+    abort();
+  }
+  rg_base_ = 0;
+  if (!options_.TEST_skip_scattering) {
+    PARQUET_THROW_NOT_OK(file_->EndRowGroup());
+  }
+}
+
 void ParquetWriter::Finish() {
   Flush();  // Force ending the current row group with potential paddings
   if (!options_.TEST_skip_scattering) {
     PARQUET_THROW_NOT_OK(file_->Finish());
-  }
-  if (root_writer_) {
-    root_writer_->Close();
-#if PARQUET_WRITER_DEBUG
-    {
-      std::shared_ptr<parquet::FileMetaData> f = root_writer_->metadata();
-      PrintFileMetaData(*f);
-    }
-#endif
-    root_writer_.reset();
   }
 }
 

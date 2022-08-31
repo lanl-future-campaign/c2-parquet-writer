@@ -59,22 +59,25 @@ class ParquetWriter {
  public:
   ParquetWriter(const ParquetWriterOptions& options,
                 std::shared_ptr<ScatterFileStream> file);
-  int64_t TEST_rowgroupsize() const { return rowgrouprows_; }
+  int64_t TEST_maxrowspergroup() const { return max_rowgroup_rows_; }
   void Add(const Particle& particle);
-  // Force ending the current row group.
-  // Remaining space will be padded.
+  // Force ending the current row group. Remaining space
+  // in the group will be padded.
   void Flush();
   void Finish();
 
  private:
   void InternalFlush();
-  int64_t rowgrouprows_;
-  int64_t rowsize_;
-  parquet::RowGroupWriter* rg_writer_;
-  std::shared_ptr<parquet::ParquetFileWriter> root_writer_;
   std::shared_ptr<ScatterFileStream> file_;
-  parquet::schema::NodeVector rowfields_;
+  std::shared_ptr<parquet::ParquetFileWriter> writer_;
+  parquet::RowGroupWriter* rg_writer_;
+  int64_t rg_base_;
+  std::shared_ptr<parquet::WriterProperties> properties_;
+  std::shared_ptr<parquet::schema::GroupNode> root_;
+  parquet::schema::NodeVector children_;
   ParquetWriterOptions options_;
+  int64_t max_rowgroup_rows_;
+  int64_t row_size_;
 };
 
 }  // namespace c2
