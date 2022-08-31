@@ -136,10 +136,11 @@ int main(int argc, char* argv[]) {
   // options.TEST_skip_scattering = true;
   c2::ParquetWriter writer(options, std::move(file));
   printf("max rows per group: %d\n", int(writer.TEST_maxrowspergroup()));
+  int64_t id = 1;
   for (int r = 0; r < 4; r++) {
     const int64_t rows = 10;
     for (int64_t i = 0; i < rows; i++) {
-      p.id = i;
+      p.id = id++;
       writer.Add(p);
     }
     writer.Flush();

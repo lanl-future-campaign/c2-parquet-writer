@@ -177,8 +177,7 @@ void ParquetWriter::Flush() {
   }
 }
 
-#define PARQUET_WRITER_DEBUG 1
-#if PARQUET_WRITER_DEBUG
+#define PARQUET_WRITER_DEBUG 0
 namespace {
 #define LLD(X) static_cast<long long>(X)
 std::string EscapedStringTo(const std::string& value) {
@@ -245,7 +244,6 @@ void PrintFileMetaData(const parquet::FileMetaData& f) {
 }
 #undef LLD
 }  // namespace
-#endif
 
 void ParquetWriter::InternalFlush() {
   std::string padding;
@@ -274,9 +272,10 @@ void ParquetWriter::InternalFlush() {
   writer_->Close();
   {
     std::shared_ptr<parquet::FileMetaData> f = writer_->metadata();
-#if PARQUET_WRITER_DEBUG
-    PrintFileMetaData(*f);
-#endif
+    if (PARQUET_WRITER_DEBUG) {
+      PrintFileMetaData(*f);
+    }
+    rg_logs_.emplace_back(rg_base_, std::move(f));
   }
   writer_.reset();
   int64_t cur = *file_->Tell() - rg_base_;
@@ -294,11 +293,56 @@ void ParquetWriter::InternalFlush() {
   }
 }
 
+namespace {
+
+void BuildColumnChunk(int64_t base,
+                      const parquet::ColumnChunkMetaData& metadata,
+                      parquet::ColumnChunkMetaDataBuilder* bu) {
+  if (metadata.is_stats_set()) {
+    std::shared_ptr<parquet::Statistics> stats = metadata.statistics();
+    bu->SetStatistics(stats->Encode());
+  }
+  std::map<parquet::Encoding::type, int32_t> empty;
+  bu->Finish(metadata.num_values(), 0, 0, metadata.data_page_offset() + base,
+             metadata.total_compressed_size(),
+             metadata.total_uncompressed_size(), false, false, empty, empty);
+}
+
+void BuildRowGroup(int64_t base, const parquet::RowGroupMetaData& metadata,
+                   parquet::RowGroupMetaDataBuilder* bu) {
+  int n = metadata.num_columns();
+  for (int i = 0; i < n; i++) {
+    std::unique_ptr<parquet::ColumnChunkMetaData> col = metadata.ColumnChunk(i);
+    BuildColumnChunk(base, *col, bu->NextColumnChunk());
+  }
+  bu->set_num_rows(metadata.num_rows());
+  bu->Finish(metadata.total_byte_size());
+}
+
+}  // namespace
+
 void ParquetWriter::Finish() {
   Flush();  // Force ending the current row group with potential paddings
   if (!options_.TEST_skip_scattering) {
     PARQUET_THROW_NOT_OK(file_->Finish());
   }
+  parquet::SchemaDescriptor schema;
+  schema.Init(root_);
+  std::unique_ptr<parquet::FileMetaDataBuilder> bu =
+      parquet::FileMetaDataBuilder::Make(&schema, properties_, NULLPTR);
+  for (auto& it : rg_logs_) {
+    const parquet::FileMetaData& f = *it.second;
+    if (f.num_row_groups() != 1) {
+      abort();
+    }
+    std::unique_ptr<parquet::RowGroupMetaData> rg = f.RowGroup(0);
+    BuildRowGroup(it.first, *rg, bu->AppendRowGroup());
+  }
+  std::unique_ptr<parquet::FileMetaData> result = bu->Finish();
+  if (PARQUET_WRITER_DEBUG) {
+    PrintFileMetaData(*result);
+  }
+  parquet::WriteMetaDataFile(*result, file_.get());
 }
 
 }  // namespace c2
