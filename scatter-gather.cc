@@ -74,27 +74,36 @@ arrow::Result<std::shared_ptr<ScatterFileStream>> ScatterFileStream::Open(
 
 void ScatterFileStream::StashWrites() { is_stash_enabled_ = true; }
 
+void ScatterFileStream::StashResume() { is_stash_enabled_ = false; }
+
 const std::string& ScatterFileStream::StashGet() const { return stash_; }
 
 arrow::Status ScatterFileStream::StashPop() {
   arrow::Status s;
-  is_stash_enabled_ = false;
   if (!stash_.empty()) {
-    s = Write(arrow::util::string_view(stash_));
+    s = DoWrite(stash_.data(), stash_.size());
+    stash_.resize(0);
   }
-  stash_.resize(0);
   return s;
 }
 
 arrow::Status ScatterFileStream::Write(const void* data, int64_t nbytes) {
   arrow::Status s;
-  if (is_stash_enabled_)
+  if (is_stash_enabled_) {
     stash_.append(static_cast<const char*>(data), nbytes);
-  else if (rgb_)
+  } else {
+    s = DoWrite(data, nbytes);
+  }
+  return s;
+}
+
+arrow::Status ScatterFileStream::DoWrite(const void* data, int64_t nbytes) {
+  arrow::Status s;
+  if (rgb_)
     s = rgb_->Write(data, nbytes);
   else
     s = base_->Write(data, nbytes);
-  if (s.ok() && !is_stash_enabled_) file_offset_ += nbytes;
+  if (s.ok()) file_offset_ += nbytes;
   return s;
 }
 

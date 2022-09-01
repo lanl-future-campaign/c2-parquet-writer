@@ -282,6 +282,7 @@ void ParquetWriter::InternalFlush() {
     rg_logs_.emplace_back(rg_base_, std::move(f));
   }
   writer_.reset();
+  file_->StashResume();
   int64_t cur = *file_->Tell() - rg_base_;
   cur += file_->StashGet().size();
   if (cur < options_.rowgroup_size) {
