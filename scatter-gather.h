@@ -62,8 +62,13 @@ class ScatterFileStream : public arrow::io::OutputStream {
   // Clients are expected to call 0, 1, or more pairs of BeginRowGroup()
   // and EndRowGroup(), followed by a single Finish().
   arrow::Status BeginRowGroup();
+  // Stash incoming writes until StashPop().
+  void StashWrites();
   arrow::Status Write(const void* data, int64_t nbytes) override;
   using Writable::Write;
+  const std::string& StashGet() const;
+  // Apply stashed writes.
+  arrow::Status StashPop();
   arrow::Status EndRowGroup();
   arrow::Status Finish();
 
@@ -74,6 +79,8 @@ class ScatterFileStream : public arrow::io::OutputStream {
                     const std::string& prefix);
   std::shared_ptr<arrow::io::FileOutputStream> base_;
   std::shared_ptr<arrow::io::FileOutputStream> rgb_;
+  bool is_stash_enabled_;
+  std::string stash_;
   ScatterFileStreamOptions options_;
   std::string prefix_;
   int64_t file_offset_;
