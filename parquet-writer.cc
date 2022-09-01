@@ -269,6 +269,10 @@ void ParquetWriter::InternalFlush() {
   }
   rg_writer_->Close();
   rg_writer_ = NULLPTR;
+  // We will stash the parquet metadata resulted from calling
+  // writer_->Close() till we apply the padding so that the metadata will
+  // appear at the very end of the row group
+  file_->StashWrites();
   writer_->Close();
   {
     std::shared_ptr<parquet::FileMetaData> f = writer_->metadata();
@@ -279,6 +283,7 @@ void ParquetWriter::InternalFlush() {
   }
   writer_.reset();
   int64_t cur = *file_->Tell() - rg_base_;
+  cur += file_->StashGet().size();
   if (cur < options_.rowgroup_size) {
     padding.resize(options_.rowgroup_size - cur, 0);
     PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
@@ -288,6 +293,7 @@ void ParquetWriter::InternalFlush() {
     abort();
   }
   rg_base_ = 0;
+  PARQUET_THROW_NOT_OK(file_->StashPop());
   if (!options_.TEST_skip_scattering) {
     PARQUET_THROW_NOT_OK(file_->EndRowGroup());
   }

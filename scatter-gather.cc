@@ -94,7 +94,7 @@ arrow::Status ScatterFileStream::Write(const void* data, int64_t nbytes) {
     s = rgb_->Write(data, nbytes);
   else
     s = base_->Write(data, nbytes);
-  if (s.ok()) file_offset_ += nbytes;
+  if (s.ok() && !is_stash_enabled_) file_offset_ += nbytes;
   return s;
 }
 
