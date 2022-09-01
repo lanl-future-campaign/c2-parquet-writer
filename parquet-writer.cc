@@ -269,9 +269,9 @@ void ParquetWriter::InternalFlush() {
   }
   rg_writer_->Close();
   rg_writer_ = NULLPTR;
-  // We will stash the parquet metadata resulted from calling
-  // writer_->Close() till we apply the padding so that the metadata will
-  // appear at the very end of the row group
+  // We will stash away the parquet metadata generated from calling
+  // writer_->Close() until after we apply the padding so that the metadata
+  // can be written at the very end of the row group
   file_->StashWrites();
   writer_->Close();
   {
