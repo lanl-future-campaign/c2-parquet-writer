@@ -107,7 +107,9 @@ arrow::Status ScatterFileStream::DoWrite(const void* data, int64_t nbytes) {
   return s;
 }
 
-arrow::Result<int64_t> ScatterFileStream::Tell() const { return file_offset_; }
+arrow::Result<int64_t> ScatterFileStream::Tell() const {
+  return file_offset_ + stash_.size();
+}
 
 bool ScatterFileStream::closed() const { return closed_; }
 
