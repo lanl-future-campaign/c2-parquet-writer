@@ -125,26 +125,52 @@ Reader::~Reader() {
   }
 }
 
+class ParquetFormatter {
+ public:
+  ParquetFormatter(const std::string& in, const std::string& out);
+  ~ParquetFormatter();
+
+  void Open();
+  void Go();
+
+ private:
+  Reader* reader_;
+  const std::string outputname_;
+  std::shared_ptr<c2::ScatterFileStream> outputfile_;
+  ParquetWriter* writer_;
+};
+
+ParquetFormatter::ParquetFormatter(const std::string& in,
+                                   const std::string& out)
+    : reader_(new Reader(in)), outputname_(out), writer_(NULLPTR) {}
+
+void ParquetFormatter::Open() {
+  reader_->Open();
+  PARQUET_ASSIGN_OR_THROW(outputfile_, ScatterFileStream::Open(outputname_));
+  writer_ = new ParquetWriter(ParquetWriterOptions(), outputfile_);
+  printf("max rows per group: %d\n", int(writer_->TEST_maxrowspergroup()));
+}
+
+void ParquetFormatter::Go() {
+  Particle p;
+  memset(&p, 0, sizeof(p));
+  while (reader_->has_next()) {
+    reader_->NextParticle(&p);
+    writer_->Add(p);
+  }
+  writer_->Finish();
+}
+
+ParquetFormatter::~ParquetFormatter() {
+  delete reader_;
+  delete writer_;
+}
+
 }  // namespace c2
 
 int main(int argc, char* argv[]) {
-  c2::Particle p;
-  memset(&p, 0, sizeof(p));
-  std::shared_ptr<c2::ScatterFileStream> file;
-  PARQUET_ASSIGN_OR_THROW(file, c2::ScatterFileStream::Open("xyz.parquet"));
-  c2::ParquetWriterOptions options;
-  // options.TEST_skip_scattering = true;
-  c2::ParquetWriter writer(options, std::move(file));
-  printf("max rows per group: %d\n", int(writer.TEST_maxrowspergroup()));
-  int64_t id = 1;
-  for (int r = 0; r < 4; r++) {
-    const int64_t rows = 10;
-    for (int64_t i = 0; i < rows; i++) {
-      p.id = id++;
-      writer.Add(p);
-    }
-    writer.Flush();
-  }
-  writer.Finish();
+  c2::ParquetFormatter fmt(argv[1], argv[2]);
+  fmt.Open();
+  fmt.Go();
   return 0;
 }
