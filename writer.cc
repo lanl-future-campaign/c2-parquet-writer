@@ -32,6 +32,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "parquet-writer.h"
+#include "pthread_helper.h"
 
 #include <arrow/io/file.h>
 #include <arrow/util/logging.h>
@@ -131,7 +132,8 @@ class ParquetFormatter {
   ~ParquetFormatter();
 
   void Open();
-  void Go();
+  // Return the number of particles processed
+  int Go();
 
  private:
   Reader* reader_;
@@ -151,14 +153,17 @@ void ParquetFormatter::Open() {
   printf("max rows per group: %d\n", int(writer_->TEST_maxrowspergroup()));
 }
 
-void ParquetFormatter::Go() {
+int ParquetFormatter::Go() {
+  int r = 0;
   Particle p;
   memset(&p, 0, sizeof(p));
   while (reader_->has_next()) {
     reader_->NextParticle(&p);
     writer_->Add(p);
+    r++;
   }
   writer_->Finish();
+  return r;
 }
 
 ParquetFormatter::~ParquetFormatter() {
@@ -166,11 +171,96 @@ ParquetFormatter::~ParquetFormatter() {
   delete writer_;
 }
 
+class JobScheduler {
+ public:
+  explicit JobScheduler(int j);
+  ~JobScheduler();
+  void AddTask(const std::string& in, const std::string& out);
+  void Wait();
+
+ private:
+  struct Task {
+    JobScheduler* parent;
+    std::string in, out;
+    int nparticles;
+  };
+  void ReapFinished();  // REQUIRES: mu_ must have been locked
+  static void RunJob(void*);
+  ThreadPool* const pool_;
+  // State below protected by cv_;
+  std::vector<Task*> finished_tasks_;
+  port::Mutex mu_;
+  port::CondVar cv_;
+  int bg_scheduled_;
+  int bg_completed_;
+};
+
+JobScheduler::JobScheduler(int j)
+    : pool_(new ThreadPool(j)), cv_(&mu_), bg_scheduled_(0), bg_completed_(0) {}
+
+void JobScheduler::ReapFinished() {
+  if (!finished_tasks_.empty()) {
+    for (auto& it : finished_tasks_) {
+      printf("[FROM] %s [TO] %s [WHERE] %d particles were processed\n",
+             it->in.c_str(), it->out.c_str(), it->nparticles);
+      delete it;
+    }
+    finished_tasks_.resize(0);
+  }
+}
+
+void JobScheduler::Wait() {
+  MutexLock ml(&mu_);
+  while (bg_completed_ < bg_scheduled_) {
+    cv_.Wait();
+    ReapFinished();
+  }
+  ReapFinished();
+}
+
+void JobScheduler::AddTask(const std::string& in, const std::string& out) {
+  Task* const t = new Task;
+  t->parent = this;
+  t->in = in;
+  t->out = out;
+  t->nparticles = 0;
+  MutexLock ml(&mu_);
+  bg_scheduled_++;
+  pool_->Schedule(RunJob, t);
+}
+
+void JobScheduler::RunJob(void* arg) {
+  Task* t = static_cast<Task*>(arg);
+  try {
+    ParquetFormatter fmt(t->in, t->out);
+    fmt.Open();
+    t->nparticles = fmt.Go();
+  } catch (const std::exception& e) {
+    fprintf(stderr, "ERROR: %s\n", e.what());
+  }
+  JobScheduler* const p = t->parent;
+  MutexLock ml(&p->mu_);
+  p->finished_tasks_.push_back(t);
+  p->bg_completed_++;
+  p->cv_.SignalAll();
+}
+
+JobScheduler::~JobScheduler() {
+  {
+    MutexLock ml(&mu_);
+    while (bg_completed_ < bg_scheduled_) {
+      cv_.Wait();
+    }
+    ReapFinished();
+  }
+  delete pool_;
+}
+
 }  // namespace c2
 
 int main(int argc, char* argv[]) {
-  c2::ParquetFormatter fmt(argv[1], argv[2]);
-  fmt.Open();
-  fmt.Go();
+  c2::JobScheduler master(4);
+  master.AddTask(argv[1], argv[2]);
+  master.Wait();
   return 0;
 }
