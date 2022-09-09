@@ -116,8 +116,8 @@ bool ScatterFileStream::closed() const { return closed_; }
 arrow::Status ScatterFileStream::BeginRowGroup() {
   arrow::Status s;
   if (!rgb_) {
-    char tmp[10];
-    snprintf(tmp, sizeof(tmp), "%lld", static_cast<long long>(file_offset_));
+    char tmp[20];
+    sprintf(tmp, "%010lld", static_cast<long long>(file_offset_));
     std::string path = prefix_;
     path += "/rgb-";
     path += tmp;
