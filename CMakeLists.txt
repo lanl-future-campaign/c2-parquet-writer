@@ -33,7 +33,7 @@ cmake_minimum_required(VERSION 3.5)
 project(c2-parquet-writer C CXX)
 
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
@@ -50,3 +50,5 @@ find_package(Parquet CONFIG REQUIRED PATHS
 
 add_executable(writer writer.cc parquet-writer.cc scatter-gather.cc)
 target_link_libraries(writer parquet_shared arrow_shared Threads::Threads)
+
+add_executable(prober prober.cc)
