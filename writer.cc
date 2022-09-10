@@ -33,17 +33,16 @@
  */
 #include "parquet-writer.h"
 #include "pthread_helper.h"
+#include "reader.h"
 
 #include <arrow/io/file.h>
 #include <arrow/util/logging.h>
 
-#include <assert.h>
 #include <dirent.h>
 #include <errno.h>
 #include <getopt.h>
 #include <stddef.h>
 #include <stdexcept>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,82 +51,6 @@
 #include <vector>
 
 namespace c2 {
-// A simple wrapper over C FILE for particle reading.
-// Implementation is not thread safe.
-class Reader {
- public:
-  explicit Reader(const std::string& filename);
-  ~Reader();
-  void Open();
-  void NextParticle(Particle* particle);
-  bool has_next() const { return (ftell(file_) + 48) < file_size_; }
-
- private:
-  // No copying allowed
-  Reader(const Reader&);
-  void operator=(const Reader& reader);
-  const std::string filename_;
-  size_t file_size_;
-  FILE* file_;
-};
-
-template <typename T>
-inline void Decode(FILE* file, T* result) {
-  int r = fread(result, sizeof(T), 1, file);
-  if (r != 1) {
-    char tmp[100];
-    snprintf(tmp, sizeof(tmp), "Error reading data from file: %s\n",
-             strerror(errno));
-    throw std::runtime_error(tmp);
-  }
-}
-
-Reader::Reader(const std::string& filename)
-    : filename_(filename), file_size_(0), file_(NULL) {}
-
-void Reader::Open() {
-  if (file_) {
-    return;
-  }
-  file_ = fopen(filename_.c_str(), "r");
-  if (!file_) {
-    char tmp[100];
-    snprintf(tmp, sizeof(tmp), "Fail to open file %s: %s\n", filename_.c_str(),
-             strerror(errno));
-    throw std::runtime_error(tmp);
-  }
-  int r = fseek(file_, 0, SEEK_END);
-  if (r != 0) {
-    char tmp[100];
-    snprintf(tmp, sizeof(tmp), "Error seeking to the end of file: %s\n",
-             strerror(errno));
-    throw std::runtime_error(tmp);
-  }
-  file_size_ = ftell(file_);
-  rewind(file_);
-}
-
-void Reader::NextParticle(Particle* particle) {
-  assert(file_);
-  uint64_t ignored_padding;
-  Decode(file_, &particle->id);
-  Decode(file_, &ignored_padding);
-  Decode(file_, &particle->x);
-  Decode(file_, &particle->y);
-  Decode(file_, &particle->z);
-  Decode(file_, &particle->i);
-  Decode(file_, &particle->ux);
-  Decode(file_, &particle->uy);
-  Decode(file_, &particle->uz);
-  Decode(file_, &particle->ke);
-}
-
-Reader::~Reader() {
-  if (file_) {
-    fclose(file_);
-  }
-}
-
 class ParquetFormatter {
  public:
   ParquetFormatter(const std::string& in, const std::string& out);
