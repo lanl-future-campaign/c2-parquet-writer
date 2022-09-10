@@ -32,7 +32,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "parquet-writer.h"
-#include "pthread_helper.h"
+#include "pthread-helper.h"
 #include "reader.h"
 
 #include <arrow/io/file.h>
