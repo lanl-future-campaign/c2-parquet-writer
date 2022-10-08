@@ -50,8 +50,31 @@
 #include <sys/stat.h>
 #include <vector>
 
-namespace c2 {
 static c2::ParquetWriterOptions g_writer_options;
+
+static int skip_scattering;
+
+namespace c2 {
+
+class ParquetOutputStreamWrapper : public ParquetOutputStream {
+ public:
+  explicit ParquetOutputStreamWrapper(
+      std::shared_ptr<arrow::io::OutputStream> base)
+      : base_(std::move(base)) {}
+  arrow::Status Close() override { return base_->Close(); }
+  bool closed() const override { return base_->closed(); }
+  arrow::Result<int64_t> Tell() const override { return base_->Tell(); }
+  arrow::Status BeginRowGroup() override { return {}; }
+  arrow::Status EndRowGroup() override { return {}; }
+  arrow::Status Finish() override { return {}; }
+  arrow::Status Write(const void* data, int64_t nbytes) override {
+    return base_->Write(data, nbytes);
+  }
+  using Writable::Write;
+
+ private:
+  std::shared_ptr<arrow::io::OutputStream> base_;
+};
 
 class ParquetFormatter {
  public:
@@ -65,7 +88,7 @@ class ParquetFormatter {
  private:
   Reader* reader_;
   const std::string outputname_;
-  std::shared_ptr<c2::ScatterFileStream> outputfile_;
+  std::shared_ptr<c2::ParquetOutputStream> outputfile_;
   ParquetWriter* writer_;
 };
 
@@ -75,7 +98,14 @@ ParquetFormatter::ParquetFormatter(const std::string& in,
 
 void ParquetFormatter::Open() {
   reader_->Open();
-  PARQUET_ASSIGN_OR_THROW(outputfile_, ScatterFileStream::Open(outputname_));
+  if (!skip_scattering) {
+    PARQUET_ASSIGN_OR_THROW(outputfile_, ScatterFileStream::Open(outputname_));
+  } else {
+    std::shared_ptr<arrow::io::FileOutputStream> base;
+    PARQUET_ASSIGN_OR_THROW(base,
+                            arrow::io::FileOutputStream::Open(outputname_));
+    outputfile_.reset(new ParquetOutputStreamWrapper(base));
+  }
   writer_ = new ParquetWriter(g_writer_options, outputfile_);
 }
 
@@ -225,6 +255,7 @@ static void usage(char* argv0, const char* msg) {
 
 int main(int argc, char* argv[]) {
   char* const argv0 = argv[0];
+  skip_scattering = 0;
   int j = 4;
   int c;
 
@@ -236,7 +267,7 @@ int main(int argc, char* argv[]) {
         if (j < 1) usage(argv0, "invalid max job count");
         break;
       case 's':
-        c2::g_writer_options.TEST_skip_scattering = atoi(optarg);
+        skip_scattering = atoi(optarg);
         break;
       case 'h':
       default:
