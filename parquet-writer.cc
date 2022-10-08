@@ -38,6 +38,7 @@ namespace c2 {
 ParquetWriterOptions::ParquetWriterOptions()
     : rowgroup_size(1 << 20),
       diskpage_size(1 << 9),
+      skip_padding(false),
       TEST_skip_scattering(false) {}
 
 namespace {
@@ -70,6 +71,7 @@ int64_t CalculateRowGroupSize(const ParquetWriterOptions& options,
     const int64_t s = GetTypeByteSize(
         std::static_pointer_cast<parquet::schema::PrimitiveNode>(fields[i])
             ->physical_type());
+    // Reserve one disk page for column metadata
     int64_t n = (t * s / rowsize - 1) * options.diskpage_size / s;
     if (n < result) {
       result = n;
@@ -150,7 +152,10 @@ void ParquetWriter::Add(const Particle& particle) {
         new FileOutputStreamWrapper(file_, rg_base_));
     writer_ = parquet::ParquetFileWriter::Open(f, root_, properties_);
     int64_t cur = *f->Tell();
-    if (cur < options_.diskpage_size) {
+    // Allocate an entire disk page for a parquet header
+    if (options_.skip_padding) {
+      // Empty
+    } else if (cur < options_.diskpage_size) {
       std::string padding(options_.diskpage_size - cur, 0);
       PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
     } else {
@@ -258,7 +263,10 @@ void ParquetWriter::InternalFlush() {
     rg_writer_->column(i)->Close();
     int64_t colsize = t * s / row_size_ * options_.diskpage_size;
     int64_t cursize = *file_->Tell() - colbase;
-    if (cursize < colsize) {
+    // Per-column padding
+    if (options_.skip_padding) {
+      // Empty
+    } else if (cursize < colsize) {
       padding.resize(colsize - cursize, 0);
       PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
     } else if (cursize == colsize) {
@@ -285,7 +293,10 @@ void ParquetWriter::InternalFlush() {
   // File position includes the data we stashed away
   int64_t cur = *file_->Tell() - rg_base_;
   file_->StashResume();
-  if (cur < options_.rowgroup_size) {
+  // Per-rowgroup padding
+  if (options_.skip_padding) {
+    // Empty
+  } else if (cur < options_.rowgroup_size) {
     padding.resize(options_.rowgroup_size - cur, 0);
     PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
   } else if (cur == options_.rowgroup_size) {

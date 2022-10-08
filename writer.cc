@@ -247,7 +247,7 @@ static void usage(char* argv0, const char* msg) {
   if (msg) fprintf(stderr, "%s: %s\n\n", argv0, msg);
   fprintf(stderr, "===============\n");
   fprintf(stderr, "Usage: %s [options] input_path [output_path]\n\n", argv0);
-  fprintf(stderr, "-s\tbool\t\t:  skip scattering\n");
+  fprintf(stderr, "-s\tbool\t\t:  skip padding and scattering\n");
   fprintf(stderr, "-j\tjobs\t\t:  max concurrent jobs\n");
   fprintf(stderr, "===============\n");
   exit(EXIT_FAILURE);
@@ -255,6 +255,7 @@ static void usage(char* argv0, const char* msg) {
 
 int main(int argc, char* argv[]) {
   char* const argv0 = argv[0];
+  g_writer_options = c2::ParquetWriterOptions();
   skip_scattering = 0;
   int j = 4;
   int c;
@@ -267,7 +268,7 @@ int main(int argc, char* argv[]) {
         if (j < 1) usage(argv0, "invalid max job count");
         break;
       case 's':
-        skip_scattering = atoi(optarg);
+        g_writer_options.skip_padding = skip_scattering = atoi(optarg);
         break;
       case 'h':
       default:

@@ -48,6 +48,9 @@ struct ParquetWriterOptions {
   // Size of a single disk page (zfs ashift)
   // Default: 512B
   int64_t diskpage_size;
+  // Skip padding row groups. Alignment is not ensured when padding is skipped.
+  // Default: false
+  bool skip_padding;
   // Skip calling a ParquetOutputStream's BeginRowGroup(), EndRowGroup(), and
   // Finish() function calls that are required to generate scattered parquet row
   // groups. This option is mainly used by internal test code.
