@@ -51,6 +51,8 @@
 #include <vector>
 
 namespace c2 {
+static c2::ParquetWriterOptions g_writer_options;
+
 class ParquetFormatter {
  public:
   ParquetFormatter(const std::string& in, const std::string& out);
@@ -74,7 +76,7 @@ ParquetFormatter::ParquetFormatter(const std::string& in,
 void ParquetFormatter::Open() {
   reader_->Open();
   PARQUET_ASSIGN_OR_THROW(outputfile_, ScatterFileStream::Open(outputname_));
-  writer_ = new ParquetWriter(ParquetWriterOptions(), outputfile_);
+  writer_ = new ParquetWriter(g_writer_options, outputfile_);
 }
 
 int ParquetFormatter::Go() {
@@ -215,6 +217,7 @@ static void usage(char* argv0, const char* msg) {
   if (msg) fprintf(stderr, "%s: %s\n\n", argv0, msg);
   fprintf(stderr, "===============\n");
   fprintf(stderr, "Usage: %s [options] input_path [output_path]\n\n", argv0);
+  fprintf(stderr, "-s\tbool\t\t:  skip scattering\n");
   fprintf(stderr, "-j\tjobs\t\t:  max concurrent jobs\n");
   fprintf(stderr, "===============\n");
   exit(EXIT_FAILURE);
@@ -226,11 +229,14 @@ int main(int argc, char* argv[]) {
   int c;
 
   setlinebuf(stdout);
-  while ((c = getopt(argc, argv, "j:h")) != -1) {
+  while ((c = getopt(argc, argv, "j:s:h")) != -1) {
     switch (c) {
       case 'j':
         j = atoi(optarg);
         if (j < 1) usage(argv0, "invalid max job count");
+        break;
+      case 's':
+        c2::g_writer_options.TEST_skip_scattering = atoi(optarg);
         break;
       case 'h':
       default:
