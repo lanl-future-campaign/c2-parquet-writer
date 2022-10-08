@@ -37,16 +37,21 @@
 
 namespace c2 {
 
+// Custom parquet output stream enabling direct row group placement control
+// with the added BeginRowGroup(), EndRowGroup(), and Finish() API calls.
 class ParquetOutputStream : public arrow::io::OutputStream {
  public:
   ParquetOutputStream() {}
   // Clients are expected to call 0, 1, or more pairs of BeginRowGroup()
-  // and EndRowGroup(), followed by a single Finish().
+  // and EndRowGroup(), followed by a single Finish(). Implementation handles
+  // underlying row group placement and (external row group) paddings.
   virtual arrow::Status BeginRowGroup() = 0;
   virtual arrow::Status EndRowGroup() = 0;
   virtual arrow::Status Finish() = 0;
 };
 
+// A wrapper parquet output stream implementation that allows writes to be
+// stashed and applied at a later point in time.
 class StashableOutputStream : public ParquetOutputStream {
  public:
   StashableOutputStream(std::shared_ptr<ParquetOutputStream> base);
