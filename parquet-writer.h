@@ -48,8 +48,8 @@ struct ParquetWriterOptions {
   // Size of a single disk page (zfs ashift)
   // Default: 512B
   int64_t diskpage_size;
-  // Skip calling a ScatterFileStream's BeginRowGroup(), EndRowGroup(), and
-  // Finish() functions that are required to generate scattered parquet row
+  // Skip calling a ParquetOutputStream's BeginRowGroup(), EndRowGroup(), and
+  // Finish() function calls that are required to generate scattered parquet row
   // groups. This option is mainly used by internal test code.
   // Default: false
   bool TEST_skip_scattering;
@@ -82,7 +82,7 @@ struct ParquetWriterOptions {
 class ParquetWriter {
  public:
   ParquetWriter(const ParquetWriterOptions& options,
-                std::shared_ptr<ScatterFileStream> file);
+                std::shared_ptr<ParquetOutputStream> file);
   int64_t TEST_maxrowspergroup() const { return max_rowgroup_rows_; }
   void Add(const Particle& particle);
   // Force ending the current row group. Remaining space
