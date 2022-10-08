@@ -33,49 +33,47 @@
  */
 #pragma once
 
-#include "writables.h"
+#include <arrow/io/file.h>
 
 namespace c2 {
 
-struct ScatterFileStreamOptions {
-  ScatterFileStreamOptions();
-  // Byte size for each row group batch
-  // Default: 4MB
-  int64_t fragment_size;
-  // Fragments are padded unless the following is true.
-  // Padding may be skipped when all fragments are known to consume at least two
-  // zfs records, in which case zfs will perform the padding for us.
-  // Default: false
-  bool skip_padding;
-};
-
-class ScatterFileStream : public ParquetOutputStream {
+class ParquetOutputStream : public arrow::io::OutputStream {
  public:
-  ~ScatterFileStream() override;
-  static arrow::Result<std::shared_ptr<ScatterFileStream>> Open(
-      const std::string& path);
-
-  arrow::Status Close() override;
-  bool closed() const override;
-  arrow::Result<int64_t> Tell() const override;
-
+  ParquetOutputStream() {}
   // Clients are expected to call 0, 1, or more pairs of BeginRowGroup()
   // and EndRowGroup(), followed by a single Finish().
+  virtual arrow::Status BeginRowGroup() = 0;
+  virtual arrow::Status EndRowGroup() = 0;
+  virtual arrow::Status Finish() = 0;
+};
+
+class StashableOutputStream : public ParquetOutputStream {
+ public:
+  StashableOutputStream(std::shared_ptr<ParquetOutputStream> base);
+  arrow::Status Close() override;
+  bool closed() const override;
+  // Stash incoming writes until StashResume(). Stashed writes are buffered in
+  // memory while continuing to affect file size and be reflected at subsequent
+  // Tell() function calls.
+  void StashWrites();
+  arrow::Result<int64_t> Tell() const override;
   arrow::Status BeginRowGroup() override;
   arrow::Status EndRowGroup() override;
   arrow::Status Finish() override;
+  // Resume writing. Future writes are no longer stashed. Previously stashed
+  // writes are not applied. Call StashPop() to apply.
+  void StashResume();
+  const std::string& StashGet() const;
+  // Apply stashed writes.
+  arrow::Status StashPop();
   arrow::Status Write(const void* data, int64_t nbytes) override;
   using Writable::Write;
 
  private:
-  arrow::Status FlushRowGroupBatch(bool force = false);
-  ScatterFileStream(const ScatterFileStreamOptions& options,
-                    std::shared_ptr<arrow::io::FileOutputStream> base,
-                    const std::string& prefix);
-  std::shared_ptr<arrow::io::FileOutputStream> base_;
-  std::shared_ptr<arrow::io::FileOutputStream> rgb_;
-  ScatterFileStreamOptions options_;
-  std::string prefix_;
+  arrow::Status DoWrite(const void* data, int64_t nbytes);
+  std::shared_ptr<ParquetOutputStream> base_;
+  bool is_stash_enabled_;
+  std::string stash_;
   int64_t file_offset_;
   bool closed_;
 };

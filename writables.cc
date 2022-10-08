@@ -31,53 +31,65 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#pragma once
-
 #include "writables.h"
 
 namespace c2 {
 
-struct ScatterFileStreamOptions {
-  ScatterFileStreamOptions();
-  // Byte size for each row group batch
-  // Default: 4MB
-  int64_t fragment_size;
-  // Fragments are padded unless the following is true.
-  // Padding may be skipped when all fragments are known to consume at least two
-  // zfs records, in which case zfs will perform the padding for us.
-  // Default: false
-  bool skip_padding;
-};
+StashableOutputStream::StashableOutputStream(
+    std::shared_ptr<ParquetOutputStream> base)
+    : base_(std::move(base)),
+      is_stash_enabled_(false),
+      file_offset_(0),
+      closed_(false) {}
 
-class ScatterFileStream : public ParquetOutputStream {
- public:
-  ~ScatterFileStream() override;
-  static arrow::Result<std::shared_ptr<ScatterFileStream>> Open(
-      const std::string& path);
+void StashableOutputStream::StashWrites() { is_stash_enabled_ = true; }
 
-  arrow::Status Close() override;
-  bool closed() const override;
-  arrow::Result<int64_t> Tell() const override;
+void StashableOutputStream::StashResume() { is_stash_enabled_ = false; }
 
-  // Clients are expected to call 0, 1, or more pairs of BeginRowGroup()
-  // and EndRowGroup(), followed by a single Finish().
-  arrow::Status BeginRowGroup() override;
-  arrow::Status EndRowGroup() override;
-  arrow::Status Finish() override;
-  arrow::Status Write(const void* data, int64_t nbytes) override;
-  using Writable::Write;
+const std::string& StashableOutputStream::StashGet() const { return stash_; }
 
- private:
-  arrow::Status FlushRowGroupBatch(bool force = false);
-  ScatterFileStream(const ScatterFileStreamOptions& options,
-                    std::shared_ptr<arrow::io::FileOutputStream> base,
-                    const std::string& prefix);
-  std::shared_ptr<arrow::io::FileOutputStream> base_;
-  std::shared_ptr<arrow::io::FileOutputStream> rgb_;
-  ScatterFileStreamOptions options_;
-  std::string prefix_;
-  int64_t file_offset_;
-  bool closed_;
-};
+arrow::Status StashableOutputStream::StashPop() {
+  arrow::Status s;
+  if (!stash_.empty()) {
+    s = DoWrite(stash_.data(), stash_.size());
+    stash_.resize(0);
+  }
+  return s;
+}
+
+arrow::Status StashableOutputStream::Write(const void* data, int64_t nbytes) {
+  arrow::Status s;
+  if (is_stash_enabled_) {
+    stash_.append(static_cast<const char*>(data), nbytes);
+  } else {
+    s = DoWrite(data, nbytes);
+  }
+  return s;
+}
+
+arrow::Status StashableOutputStream::DoWrite(const void* data, int64_t nbytes) {
+  arrow::Status s = base_->Write(data, nbytes);
+  if (s.ok()) file_offset_ += nbytes;
+  return s;
+}
+
+arrow::Status StashableOutputStream::BeginRowGroup() {
+  return base_->BeginRowGroup();
+}
+arrow::Status StashableOutputStream::EndRowGroup() {
+  return base_->EndRowGroup();
+}
+arrow::Status StashableOutputStream::Finish() { return base_->Finish(); }
+
+arrow::Result<int64_t> StashableOutputStream::Tell() const {
+  return file_offset_ + stash_.size();
+}
+
+bool StashableOutputStream::closed() const { return closed_; }
+
+arrow::Status StashableOutputStream::Close() {
+  closed_ = true;
+  return base_->Close();
+}
 
 }  // namespace c2

@@ -82,7 +82,7 @@ int64_t CalculateRowGroupSize(const ParquetWriterOptions& options,
 
 ParquetWriter::ParquetWriter(const ParquetWriterOptions& options,
                              std::shared_ptr<ScatterFileStream> file)
-    : file_(std::move(file)),
+    : file_(new StashableOutputStream(std::move(file))),
       rg_writer_(NULLPTR),
       rg_base_(0),
       options_(options),

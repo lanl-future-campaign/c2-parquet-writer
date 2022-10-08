@@ -94,7 +94,7 @@ class ParquetWriter {
   void InternalFlush();
   std::vector<std::pair<int64_t, std::shared_ptr<parquet::FileMetaData>>>
       rg_logs_;
-  std::shared_ptr<ScatterFileStream> file_;
+  std::shared_ptr<StashableOutputStream> file_;
   std::shared_ptr<parquet::ParquetFileWriter> writer_;
   parquet::RowGroupWriter* rg_writer_;
   int64_t rg_base_;
