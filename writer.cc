@@ -234,6 +234,7 @@ void process_dir(const char* inputdir, const char* outputdir, int j) {
       tmpdst.resize(tmpdst_prefix);
       tmpdst += "/";
       tmpdst += entry->d_name;
+      tmpdst += ".parquet";
       scheduler.AddTask(tmpsrc, tmpdst);
     }
     entry = readdir(dir);
