@@ -53,7 +53,7 @@ class Reader {
   ~Reader();
   void Open();
   void NextParticle(Particle* particle);
-  bool has_next() const { return (ftell(file_) + 48) < file_size_; }
+  bool has_next() const { return (ftell(file_) + 48) <= file_size_; }
 
  private:
   // No copying allowed
