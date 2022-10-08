@@ -55,6 +55,30 @@ struct ParquetWriterOptions {
   bool TEST_skip_scattering;
 };
 
+// A custom parquet file writer that generates fixed-sized parquet rowgroups
+// while replicating per-rowgroup metadata at the end of each rowgroup. This is
+// done by padding, writing each parquet rowgroup as a full-fledged parquet
+// file containing only 1 rowgroup, and storing a second copy of per-rowgroup
+// metadata at the end of the parquet file.
+//
+// Custom parquet file:
+//  - parquet subfile 1 with rowgroup 1
+//    - header
+//    - rowgroup 1
+//    - padding
+//    - footer with metadata for rowgroup 1
+//  - parquet subfile 2 with rowgroup 2
+//    - header
+//    - rowgroup 2
+//    - padding
+//    - footer with metadata for rowgroup 2
+//  ...
+//  - parquet subfile N with rowgroup N
+//    - header
+//    - rowgroup N
+//    - padding
+//    - footer with metadata for rowgroup N
+//  - header + footer with metadata for all rowgroups
 class ParquetWriter {
  public:
   ParquetWriter(const ParquetWriterOptions& options,
