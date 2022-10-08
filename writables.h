@@ -61,7 +61,7 @@ class StashableOutputStream : public ParquetOutputStream {
   arrow::Status EndRowGroup() override;
   arrow::Status Finish() override;
   // Resume writing. Future writes are no longer stashed. Previously stashed
-  // writes are not applied. Call StashPop() to apply.
+  // writes are not applied. They are applied only through StashPop().
   void StashResume();
   const std::string& StashGet() const;
   // Apply stashed writes.
