@@ -65,21 +65,33 @@ struct ParquetWriterOptions {
 // metadata at the end of the parquet file.
 //
 // Custom parquet file:
-//  - parquet subfile 1 with rowgroup 1
-//    - header
+//  - parquet subfile 1 with rowgroup 1 (exact 1MB or other configured sizes)
+//    - header + header padding
 //    - rowgroup 1
-//    - padding
+//      - column 1 + per-column padding
+//      - column 2 + per-column padding
+//      ...
+//      - column M + per-column padding
+//      - rowgroup padding
 //    - footer with metadata for rowgroup 1
-//  - parquet subfile 2 with rowgroup 2
-//    - header
+//  - parquet subfile 2 with rowgroup 2 (exact 1MB or other configured sizes)
+//    - header + header padding
 //    - rowgroup 2
-//    - padding
+//      - column 1 + per-column padding
+//      - column 2 + per-column padding
+//      ...
+//      - column M + per-column padding
+//      - rowgroup padding
 //    - footer with metadata for rowgroup 2
 //  ...
-//  - parquet subfile N with rowgroup N
-//    - header
+//  - parquet subfile N with rowgroup N (exact 1MB or other configured sizes)
+//    - header + header padding
 //    - rowgroup N
-//    - padding
+//      - column 1 + per-column padding
+//      - column 2 + per-column padding
+//      ...
+//      - column M + per-column padding
+//      - rowgroup padding
 //    - footer with metadata for rowgroup N
 //  - header + footer with metadata for all rowgroups
 class ParquetWriter {
