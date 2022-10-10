@@ -49,6 +49,7 @@ make
 A sample VPIC dataset can be found at https://github.com/lanl-future-campaign/c2-vpic-sample-dataset. C2's custom parquet writer can be used to transform plain VPIC data into Apache Parquet.
 
 ```bash
+git clone https://github.com/lanl-future-campaign/c2-vpic-sample-dataset.git
 c2-parquet-writer/build/writer -s 1 -j 8 c2-vpic-sample-dataset/particles /tmp
 [FROM] c2-vpic-sample-dataset/particles/eparticle.192.0.bin [TO] /tmp/eparticle.192.0.bin.parquet [WHERE] 131072 particles were processed
 [FROM] c2-vpic-sample-dataset/particles/eparticle.216.0.bin [TO] /tmp/eparticle.216.0.bin.parquet [WHERE] 131072 particles were processed
