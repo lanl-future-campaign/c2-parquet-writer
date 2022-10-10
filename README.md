@@ -56,9 +56,10 @@ c2-parquet-writer/build/writer -s 1 -j 8 c2-vpic-sample-dataset/particles /tmp
 Done
 ```
 
-Here we used `-j 8` to run 8 worker threads concurrently and `-s 1` to skip RAID alignment so that the generated Parquet file can be directly read by a standard Parquet reader without requiring a shim layer to transform file views.
+Here we used `-j 8` to run 8 worker threads concurrently and `-s 1` to skip RAID alignment so that the generated Parquet file can be directly read by a standard Parquet reader without requiring a shim layer to transform file views. On MacOS, a Java based Parquet reader is available and can be installed via Homebrew. See below.
 
 ```bash
+brew install parquet-cli
 /usr/local/bin/parquet meta /tmp/eparticle.0.0.bin.parquet
 
 File path:  /tmp/eparticle.0.0.bin.parquet
