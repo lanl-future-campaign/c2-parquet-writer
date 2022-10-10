@@ -56,7 +56,7 @@ c2-parquet-writer/build/writer -s 1 -j 8 c2-vpic-sample-dataset/particles /tmp
 Done
 ```
 
-Here we used `-j 8` to run 8 worker threads concurrently and `-s 1` to skip Parquet rowgroup alignment and scattering so that the generated Parquet file can be directly read by a standard Parquet reader.
+Here we used `-j 8` to run 8 worker threads concurrently and `-s 1` to skip RAID alignment so that the generated Parquet file can be directly read by a standard Parquet reader without requiring a shim layer to transform file views.
 
 ```bash
 /usr/local/bin/parquet meta /tmp/eparticle.0.0.bin.parquet
