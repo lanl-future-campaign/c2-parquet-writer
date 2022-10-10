@@ -1,4 +1,4 @@
-**Early experimental code for converting VPIC particle dataset to RAID-aligned Apache Parquet files**
+**Early experimental code for converting VPIC particle data to RAID-aligned Apache Parquet files**
 
 [![License](https://img.shields.io/badge/license-New%20BSD-blue.svg)](LICENSE.txt)
 
@@ -46,7 +46,7 @@ make
 
 # Sample VPIC dataset
 
-A sample VPIC dataset can be found at https://github.com/lanl-future-campaign/c2-vpic-sample-dataset. C2's custom parquet writer can be used to transform plain VPIC data into Apache Parquet.
+A sample VPIC dataset can be found at https://github.com/lanl-future-campaign/c2-vpic-sample-dataset. C2's custom parquet writer can be used to transform VPIC data into formatted Apache Parquet files.
 
 ```bash
 git clone https://github.com/lanl-future-campaign/c2-vpic-sample-dataset.git
