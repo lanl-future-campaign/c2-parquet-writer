@@ -32,7 +32,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(c2-parquet-writer C CXX)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -45,8 +45,7 @@ set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 find_package(Arrow CONFIG REQUIRED)
-find_package(Parquet CONFIG REQUIRED PATHS
-        ${Arrow_DIR} NO_DEFAULT_PATH)
+find_package(Parquet CONFIG REQUIRED)
 
 add_executable(writer writer.cc parquet-writer.cc scatter-gather.cc writables.cc)
 target_link_libraries(writer parquet_shared arrow_shared Threads::Threads)

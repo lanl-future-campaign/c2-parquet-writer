@@ -33,6 +33,8 @@
  */
 #include "parquet-writer.h"
 
+#include "string_view.h"
+
 namespace c2 {
 
 ParquetWriterOptions::ParquetWriterOptions()
@@ -157,7 +159,7 @@ void ParquetWriter::Add(const Particle& particle) {
       // Empty
     } else if (cur < options_.diskpage_size) {
       std::string padding(options_.diskpage_size - cur, 0);
-      PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
+      PARQUET_THROW_NOT_OK(file_->Write(string_view(padding)));
     } else {
       abort();
     }
@@ -268,7 +270,7 @@ void ParquetWriter::InternalFlush() {
       // Empty
     } else if (cursize < colsize) {
       padding.resize(colsize - cursize, 0);
-      PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
+      PARQUET_THROW_NOT_OK(file_->Write(string_view(padding)));
     } else if (cursize == colsize) {
       // OK!
     } else {
@@ -298,7 +300,7 @@ void ParquetWriter::InternalFlush() {
     // Empty
   } else if (cur < options_.rowgroup_size) {
     padding.resize(options_.rowgroup_size - cur, 0);
-    PARQUET_THROW_NOT_OK(file_->Write(arrow::util::string_view(padding)));
+    PARQUET_THROW_NOT_OK(file_->Write(string_view(padding)));
   } else if (cur == options_.rowgroup_size) {
     // OK!
   } else {

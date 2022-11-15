@@ -33,6 +33,8 @@
  */
 #include "scatter-gather.h"
 
+#include "string_view.h"
+
 #include <arrow/filesystem/localfs.h>
 
 namespace c2 {
@@ -118,7 +120,7 @@ arrow::Status ScatterFileStream::FlushRowGroupBatch(bool force) {
       // Empty
     } else {
       int64_t n = options_.fragment_size - cur;
-      s = rgb_->Write(arrow::util::string_view(std::string(n, 0)));
+      s = rgb_->Write(string_view(std::string(n, 0)));
       if (!s.ok()) {
         return s;
       }
