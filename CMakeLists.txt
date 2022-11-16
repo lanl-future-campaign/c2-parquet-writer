@@ -47,7 +47,9 @@ find_package(Threads REQUIRED)
 find_package(Arrow CONFIG REQUIRED)
 find_package(Parquet CONFIG REQUIRED PATHS ${Arrow_DIR})
 
-add_executable(writer writer.cc parquet-writer.cc scatter-gather.cc writables.cc)
-target_link_libraries(writer parquet_shared arrow_shared Threads::Threads)
+add_executable(writer writer.cc parquet-writer.cc scatter-gather.cc
+        writables.cc)
+target_link_libraries(writer Parquet::parquet_shared Arrow::arrow_shared
+        Threads::Threads)
 
 add_executable(prober prober.cc)
