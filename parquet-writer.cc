@@ -37,6 +37,10 @@
 
 namespace c2 {
 
+const int kColumnChunkPageReserve = 1;
+
+const int kParquetFooterPageReserve = 3;
+
 ParquetWriterOptions::ParquetWriterOptions()
     : rowgroup_size(1 << 20),
       diskpage_size(1 << 9),
@@ -68,13 +72,14 @@ int64_t CalculateRowGroupSize(const ParquetWriterOptions& options,
                               const int64_t rowsize) {
   int64_t result = INT64_MAX;
   const int64_t t0 = options.rowgroup_size / options.diskpage_size;
-  const int64_t t = t0 - 2;
+  const int64_t t = t0 - kParquetFooterPageReserve;
   for (int i = 0; i < fields.size(); ++i) {
     const int64_t s = GetTypeByteSize(
         std::static_pointer_cast<parquet::schema::PrimitiveNode>(fields[i])
             ->physical_type());
-    // Reserve one disk page for column metadata
-    int64_t n = (t * s / rowsize - 1) * options.diskpage_size / s;
+    // Reserve a certain amount disk pages for per-column metadata
+    int64_t n =
+        (t * s / rowsize - kColumnChunkPageReserve) * options.diskpage_size / s;
     if (n < result) {
       result = n;
     }
@@ -256,7 +261,7 @@ void ParquetWriter::InternalFlush() {
   std::string padding;
   padding.reserve(options_.diskpage_size << 1);
   const int64_t t0 = options_.rowgroup_size / options_.diskpage_size;
-  const int64_t t = t0 - 2;
+  const int64_t t = t0 - kParquetFooterPageReserve;
   for (int i = 0; i < children_.size(); ++i) {
     const int64_t colbase = *file_->Tell();
     const int64_t s = GetTypeByteSize(
