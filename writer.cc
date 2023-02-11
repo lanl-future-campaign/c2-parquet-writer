@@ -259,6 +259,7 @@ static void usage(char* argv0, const char* msg) {
 
 int main(int argc, char* argv[]) {
   char* const argv0 = argv[0];
+  g_scatter_options = c2::ScatterFileStreamOptions();
   g_writer_options = c2::ParquetWriterOptions();
   skip_scattering = 0;
   int fragment_size_mb = 4;  // in MBs
