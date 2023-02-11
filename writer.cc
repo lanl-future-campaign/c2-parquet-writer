@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
   char* const argv0 = argv[0];
   g_writer_options = c2::ParquetWriterOptions();
   skip_scattering = 0;
-  int fragment_size_mb = 16;  // in MBs
+  int fragment_size_mb = 4;  // in MBs
   int j = 4;
   int c;
 
