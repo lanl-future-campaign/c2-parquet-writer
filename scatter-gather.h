@@ -53,7 +53,7 @@ class ScatterFileStream : public ParquetOutputStream {
  public:
   ~ScatterFileStream() override;
   static arrow::Result<std::shared_ptr<ScatterFileStream>> Open(
-      const std::string& path);
+      const ScatterFileStreamOptions& options, const std::string& path);
 
   arrow::Status Close() override;
   bool closed() const override;

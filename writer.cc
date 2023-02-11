@@ -52,6 +52,8 @@
 
 static c2::ParquetWriterOptions g_writer_options;
 
+static c2::ScatterFileStreamOptions g_scatter_options;
+
 static int skip_scattering;
 
 namespace c2 {
@@ -99,7 +101,8 @@ ParquetFormatter::ParquetFormatter(const std::string& in,
 void ParquetFormatter::Open() {
   reader_->Open();
   if (!skip_scattering) {
-    PARQUET_ASSIGN_OR_THROW(outputfile_, ScatterFileStream::Open(outputname_));
+    PARQUET_ASSIGN_OR_THROW(
+        outputfile_, ScatterFileStream::Open(g_scatter_options, outputname_));
   } else {
     std::shared_ptr<arrow::io::FileOutputStream> base;
     PARQUET_ASSIGN_OR_THROW(base,
@@ -258,12 +261,17 @@ int main(int argc, char* argv[]) {
   char* const argv0 = argv[0];
   g_writer_options = c2::ParquetWriterOptions();
   skip_scattering = 0;
+  int fragment_size_mb = 16;  // in MBs
   int j = 4;
   int c;
 
   setlinebuf(stdout);
-  while ((c = getopt(argc, argv, "j:s:h")) != -1) {
+  while ((c = getopt(argc, argv, "f:j:s:h")) != -1) {
     switch (c) {
+      case 'f':
+        fragment_size_mb = atoi(optarg);
+        if (fragment_size_mb < 1) usage(argv0, "invalid fragment size");
+        break;
       case 'j':
         j = atoi(optarg);
         if (j < 1) usage(argv0, "invalid max job count");
@@ -277,6 +285,10 @@ int main(int argc, char* argv[]) {
         break;
     }
   }
+
+  g_scatter_options.fragment_size = fragment_size_mb << 20;
+  printf("fragment_size_mb=%d\n", fragment_size_mb);
+  printf("j=%d\n", j);
 
   argc -= optind;
   argv += optind;

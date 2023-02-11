@@ -52,7 +52,7 @@ ScatterFileStream::ScatterFileStream(
       closed_(false) {}
 
 arrow::Result<std::shared_ptr<ScatterFileStream>> ScatterFileStream::Open(
-    const std::string& prefix) {
+    const ScatterFileStreamOptions& options, const std::string& prefix) {
   std::string path = prefix;
   size_t prefixlen = prefix.size();
   arrow::fs::LocalFileSystem fs;
@@ -70,7 +70,7 @@ arrow::Result<std::shared_ptr<ScatterFileStream>> ScatterFileStream::Open(
     return r.status();
   }
   return std::shared_ptr<ScatterFileStream>(
-      new ScatterFileStream(ScatterFileStreamOptions(), *r, prefix));
+      new ScatterFileStream(options, *r, prefix));
 }
 
 arrow::Status ScatterFileStream::Write(const void* data, int64_t nbytes) {
