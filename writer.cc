@@ -251,6 +251,7 @@ static void usage(char* argv0, const char* msg) {
   if (msg) fprintf(stderr, "%s: %s\n\n", argv0, msg);
   fprintf(stderr, "===============\n");
   fprintf(stderr, "Usage: %s [options] input_path [output_path]\n\n", argv0);
+  fprintf(stderr, "-f\tMB\t\t:parquet fragment size in MBs\n");
   fprintf(stderr, "-s\tbool\t\t:  skip padding and scattering\n");
   fprintf(stderr, "-j\tjobs\t\t:  max concurrent jobs\n");
   fprintf(stderr, "===============\n");
