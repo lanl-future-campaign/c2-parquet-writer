@@ -252,7 +252,8 @@ static void usage(char* argv0, const char* msg) {
   fprintf(stderr, "===============\n");
   fprintf(stderr, "Usage: %s [options] input_path [output_path]\n\n", argv0);
   fprintf(stderr, "-f\tMB\t\t:parquet fragment size in MBs\n");
-  fprintf(stderr, "-s\tbool\t\t:  skip padding and scattering\n");
+  fprintf(stderr, "-s\tbool\t\t:  skip file scattering\n");
+  fprintf(stderr, "-S\tbool\t\t:  skip both padding and file scattering\n");
   fprintf(stderr, "-j\tjobs\t\t:  max concurrent jobs\n");
   fprintf(stderr, "===============\n");
   exit(EXIT_FAILURE);
@@ -268,7 +269,7 @@ int main(int argc, char* argv[]) {
   int c;
 
   setlinebuf(stdout);
-  while ((c = getopt(argc, argv, "f:j:s:h")) != -1) {
+  while ((c = getopt(argc, argv, "f:j:s:S:h")) != -1) {
     switch (c) {
       case 'f':
         fragment_size_mb = atoi(optarg);
@@ -278,8 +279,11 @@ int main(int argc, char* argv[]) {
         j = atoi(optarg);
         if (j < 1) usage(argv0, "invalid max job count");
         break;
-      case 's':
+      case 'S':
         g_writer_options.skip_padding = skip_scattering = atoi(optarg);
+        break;
+      case 's':
+        skip_scattering = atoi(optarg);
         break;
       case 'h':
       default:
@@ -289,6 +293,8 @@ int main(int argc, char* argv[]) {
   }
 
   g_scatter_options.fragment_size = fragment_size_mb << 20;
+  printf("skip_padding=%d\n", g_writer_options.skip_padding);
+  printf("skip_scattering=%d\n", skip_scattering);
   printf("fragment_size_mb=%d\n", fragment_size_mb);
   printf("j=%d\n", j);
 
