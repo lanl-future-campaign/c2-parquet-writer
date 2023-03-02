@@ -52,4 +52,4 @@ add_executable(writer writer.cc parquet-writer.cc scatter-gather.cc
 target_link_libraries(writer Parquet::parquet_shared Arrow::arrow_shared
         Threads::Threads)
 
-add_executable(prober prober.cc)
+add_executable(stats stats.cc)
