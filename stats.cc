@@ -79,7 +79,8 @@ void StatsCollector::Finish() {
   printf("Done\n");
   const size_t n = ke_.size();
   printf("Total particles: %llu\n", static_cast<unsigned long long>(n));
-  for (double r : {0.3, 0.03, 0.003, 0.0003, 0.00003, 0.000003, 0.0000003}) {
+  for (double r :
+       {0.3, 0.03, 0.003, 0.0003, 0.00003, 0.000003, 0.0000003, 0.00000003}) {
     printf("%.7f: %.6f\n", r, ke_[n - n * r]);
   }
 }
